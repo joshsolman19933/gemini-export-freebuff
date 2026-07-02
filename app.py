@@ -36,6 +36,15 @@ try:
 except ImportError:
     pass  # A manifest funkciók nem elérhetőek, de az export toolok igen
 
+# AI réteg importálása
+try:
+    from ai_layer import (
+        analyze_chat_from_json, _get_ai_results, _ensure_ai_schema,
+    )
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
+
 # ─── Inicializálás ───────────────────────────────────────────────────────────
 
 app = Flask(__name__)
@@ -272,7 +281,7 @@ def api_chats():
     try:
         rows = conn.execute("""
             SELECT e.chat_id, e.title, e.last_exported_at, e.message_count, e.status, e.image_count,
-                   m.tags, m.project, m.is_favorite, m.processing_status, m.notes
+                   m.tags, m.project, m.is_favorite, m.processing_status, m.notes, m.analyzed_at
             FROM exports e
             LEFT JOIN chat_metadata m ON e.chat_id = m.chat_id
             ORDER BY e.last_exported_at DESC
@@ -281,7 +290,7 @@ def api_chats():
 
         chats = []
         for row in rows:
-            cid, title, exported_at, msg_count, status, img_count, tags_json, project, fav, proc, notes = row
+            cid, title, exported_at, msg_count, status, img_count, tags_json, project, fav, proc, notes, analyzed_at = row
             try:
                 tags = json.loads(tags_json) if tags_json else []
             except json.JSONDecodeError:
@@ -292,7 +301,7 @@ def api_chats():
                 "status": status, "image_count": img_count or 0,
                 "tags": tags, "project": project,
                 "is_favorite": bool(fav), "processing_status": proc or "new",
-                "notes": notes,
+                "notes": notes, "analyzed_at": analyzed_at,
             })
         return jsonify(chats)
     finally:
@@ -388,6 +397,15 @@ def api_chat_metadata(cid: str):
                 (cid, data.get("notes", ""), __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()),
             )
             conn.commit()
+        elif action == "toggle_todo":
+            _ensure_ai_schema(conn)
+            todo_id = data.get("todo_id")
+            done = 1 if data.get("done") else 0
+            conn.execute(
+                "UPDATE chat_todos SET done = ? WHERE id = ? AND chat_id = ?",
+                (done, todo_id, cid),
+            )
+            conn.commit()
 
         # Visszaadjuk a frissített metaadatokat
         row = conn.execute(
@@ -430,6 +448,43 @@ def api_stats():
             "tag_count": tag_count,
             "favorite_count": fav_count,
         })
+    finally:
+        conn.close()
+
+
+
+# ─── AI elemzés API ────────────────────────────────────────────────────────
+
+@app.route("/api/chat/<cid>/analyze", methods=["POST"])
+def api_analyze_chat(cid: str):
+    """AI elemzés indítása egy chat-en."""
+    if not AI_AVAILABLE:
+        return jsonify({"error": "AI layer not available. Install openai package and set OPENAI_API_KEY."}), 503
+
+    data = request.get_json(silent=True) or {}
+    options = {
+        "summarize": data.get("summarize", True),
+        "todos": data.get("todos", True),
+        "tags": data.get("tags", True),
+    }
+
+    conn = _get_manifest()
+    try:
+        _ensure_ai_schema(conn)
+        result = analyze_chat_from_json(conn, Path(DEFAULT_OUTPUT), cid, options)
+        return jsonify(result)
+    finally:
+        conn.close()
+
+
+@app.route("/api/chat/<cid>/ai-results")
+def api_ai_results(cid: str):
+    """AI elemzés eredményeinek lekérése."""
+    conn = _get_manifest()
+    try:
+        _ensure_ai_schema(conn)
+        results = _get_ai_results(conn, cid)
+        return jsonify(results)
     finally:
         conn.close()
 

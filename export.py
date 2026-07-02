@@ -43,6 +43,15 @@ from gemini_webapi.constants import GRPC
 from gemini_webapi.types import RPCData, ChatInfo
 from gemini_webapi.utils import extract_json_from_response, get_nested_value
 
+try:
+    from ai_layer import (
+        analyze_chat, _ensure_ai_schema, _store_ai_results,
+        generate_summary, extract_todos, suggest_tags,
+    )
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
+
 
 # ─── Konfiguráció ────────────────────────────────────────────────────────────
 
@@ -1013,6 +1022,7 @@ async def _export_single_chat(
     print_lock: asyncio.Lock,
     http_session: aiohttp.ClientSession,
     manifest_conn: sqlite3.Connection | None = None,
+    ai_analyze: bool = False,
 ) -> dict | None:
     """Egyetlen beszélgetés letöltése és exportálása. Párhuzamos futtatásra tervezve.
 
@@ -1093,6 +1103,17 @@ async def _export_single_chat(
         _manifest_mark_exported(manifest_conn, cid, title, len(turns), formats, img_count)
         _index_chat_for_search(manifest_conn, cid, title, turns)
 
+        # AI elemzés (ha engedélyezve)
+        if ai_analyze and AI_AVAILABLE:
+            try:
+                _ensure_ai_schema(manifest_conn)
+                summary = generate_summary(turns, title)
+                tags = suggest_tags(turns, title)
+                todos = extract_todos(turns, title)
+                _store_ai_results(manifest_conn, cid, summary, tags, todos)
+            except Exception:
+                pass  # AI hiba nem akadályozza az exportot
+
     async with print_lock:
         print(f"[{index}/{total}] {title[:80]}... [+] ({len(turns)} üzenet)", flush=True)
 
@@ -1113,6 +1134,7 @@ async def export_all_chats(
     delay: float,
     resume: bool,
     concurrency: int = 3,
+    ai_analyze: bool = False,
 ) -> dict:
     """Párhuzamosan letolti es exportalja az összes beszélgetést asyncio.gather-rel."""
 
@@ -1155,7 +1177,7 @@ async def export_all_chats(
                 client, chat_info, i, total_count,
                 output_dir, formats, resume, delay,
                 sem, csv_writer, csv_lock, print_lock,
-                http_session, manifest_conn,
+                http_session, manifest_conn, ai_analyze,
             )
             for i, chat_info in enumerate(chats, 1)
         ]
@@ -1433,6 +1455,12 @@ Példák:
         default=False,
         help="Újraindexeli az összes korábban exportált chat-et a JSON fájlokból az FTS5 keresőbe.",
     )
+    parser.add_argument(
+        "--ai-analyze",
+        action="store_true",
+        default=False,
+        help="AI elemzés az exportálás után: összefoglaló, teendők, címkék (OpenAI API szükséges).",
+    )
     return parser.parse_args()
 
 
@@ -1621,7 +1649,7 @@ async def main():
     # ── Exportálás ───────────────────────────────────────────────────────
 
     start_time = time.time()
-    stats = await export_all_chats(client, output_dir, formats, delay, resume, args.concurrency)
+    stats = await export_all_chats(client, output_dir, formats, delay, resume, args.concurrency, args.ai_analyze)
     elapsed = time.time() - start_time
 
     # ── Összesítés ───────────────────────────────────────────────────────

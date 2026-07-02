@@ -75,6 +75,19 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);co
 .stat-mini-item{text-align:center;padding:.5rem;background:var(--bg);border-radius:4px}
 .stat-mini-val{font-size:1rem;font-weight:700}
 .stat-mini-lbl{font-size:.6rem;color:var(--text-dim);text-transform:uppercase}
+/* ── AI ── */
+.summary-box{background:linear-gradient(135deg,rgba(108,142,255,.08),rgba(167,139,250,.08));border:1px solid rgba(108,142,255,.2);border-radius:var(--radius);padding:.75rem 1rem;margin-bottom:1rem;font-size:.85rem;line-height:1.6;color:var(--text)}
+.summary-box .s-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);margin-bottom:.3rem;font-weight:600}
+.summary-box .s-text{color:var(--text-dim)}
+.todo-item{display:flex;align-items:flex-start;gap:.4rem;padding:.35rem 0;border-bottom:1px solid rgba(46,51,69,.5);font-size:.75rem}
+.todo-item:last-child{border-bottom:none}
+.todo-item input[type=checkbox]{margin-top:3px;accent-color:var(--accent)}
+.todo-item .todo-cat{font-size:.55rem;padding:1px 5px;border-radius:3px;background:rgba(108,142,255,.12);color:var(--text-dim);white-space:nowrap}
+.todo-item.done .todo-text{text-decoration:line-through;opacity:.5}
+.btn-ai{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;padding:.4rem .8rem;border-radius:4px;cursor:pointer;font-size:.75rem;font-weight:600;font-family:inherit;transition:all .15s;width:100%}
+.btn-ai:hover{opacity:.9;transform:translateY(-1px)}
+.btn-ai:disabled{opacity:.5;cursor:wait;transform:none}
+.ai-status{font-size:.7rem;color:var(--text-dim);margin-top:.4rem;text-align:center}
 
 @media(max-width:900px){
 .rpanel{display:none}
@@ -115,6 +128,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);co
 <p>Kattints a bal oldali listában egy chat-re a megtekintéséhez.</p>
 </div>
 </div>
+<div class="ai-summary" id="aiSummary" style="display:none"></div>
 </div>
 
 <!-- Right panel -->
@@ -143,6 +157,11 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);co
 <button class="btn btn-outline" id="favBtn" onclick="toggleFav()">⭐ Kedvenc</button>
 </div>
 </div>
+<div class="rpanel-section" id="aiSection" style="display:none">
+<h3>🤖 AI Elemzés</h3>
+<button class="btn-ai" id="analyzeBtn" onclick="analyzeChat()">✨ Elemzés indítása</button>
+<div class="ai-status" id="aiStatus"></div>
+<div id="todosList" style="margin-top:.75rem"></div>
 </div>
 
 <script>
@@ -185,9 +204,10 @@ const list = filtered || chats;
 const html = list.map(c => {
 const fav = c.is_favorite ? '<span class="ci-badge fav">⭐</span>' : '';
 const img = c.image_count > 0 ? `<span class="ci-badge img">${c.image_count}🖼</span>` : '';
+const ai = c.analyzed_at ? '<span class="ci-badge" style="background:rgba(167,139,250,.15);color:#a78bfa">🤖</span>' : '';
 return `<div class="chat-item${c.cid===activeCid?' active':''}" onclick="selectChat('${c.cid}')">
 <div><div class="ci-title">${esc(c.title)}</div><div class="ci-meta">${c.message_count} üzenet</div></div>
-<div class="ci-badges">${fav}${img}</div>
+<div class="ci-badges">${ai}${fav}${img}</div>
 </div>`;
 }).join('');
 document.getElementById('chatList').innerHTML = html || '<div style="padding:1rem;color:var(--text-dim)">Nincs találat.</div>';
@@ -217,8 +237,9 @@ const resp = await fetch('/api/chat/' + cid);
 if (!resp.ok) { document.getElementById('reader').innerHTML = '<div class="empty-state"><p>Nem található.</p></div>'; return; }
 const data = await resp.json();
 renderChat(data);
-// Metaadatok betöltése
+// Metaadatok és AI eredmények betöltése
 loadMetadata(cid);
+loadAiResults(cid);
 }
 
 function renderChat(data) {
@@ -316,6 +337,69 @@ const resp = await fetch('/api/reindex', {method:'POST'});
 const data = await resp.json();
 alert(data.reindexed + ' chat újraindexelve.');
 loadChats();
+}
+
+// ── AI funkciók ──
+async function loadAiResults(cid) {
+const resp = await fetch('/api/chat/' + cid + '/ai-results');
+const data = await resp.json();
+// Összefoglaló
+const summaryDiv = document.getElementById('aiSummary');
+if (data.summary) {
+summaryDiv.style.display = 'block';
+summaryDiv.innerHTML = '<div class="summary-box"><div class="s-label">🤖 AI Összefoglaló</div><div class="s-text">' + esc(data.summary) + '</div></div>';
+} else {
+summaryDiv.style.display = 'none';
+}
+// Teendők
+const todosDiv = document.getElementById('todosList');
+const todos = data.todos || [];
+if (todos.length > 0) {
+const catLabels = {todo:'📋 Teendő',project_idea:'💡 Projektötlet',decision:'🎯 Döntés',learning:'📖 Tanulság'};
+todosDiv.innerHTML = todos.map(t => {
+const done = t.done ? ' done' : '';
+const checked = t.done ? ' checked' : '';
+const cat = catLabels[t.category] || t.category;
+return `<div class="todo-item${done}">
+<input type="checkbox" ${checked} onchange="toggleTodoDone(${t.id}, this.checked)">
+<div><div class="todo-text">${esc(t.text)}</div><span class="todo-cat">${cat}</span></div>
+</div>`;
+}).join('');
+} else {
+todosDiv.innerHTML = '';
+}
+// AI panel akkor is látszik, ha nincs eredmény (az Analyze gomb miatt)
+document.getElementById('aiSection').style.display = 'block';
+document.getElementById('aiStatus').textContent = data.analyzed_at ? 'Elemezve: ' + data.analyzed_at.substring(0, 16) : '';
+}
+
+async function analyzeChat() {
+if (!activeCid) return;
+const btn = document.getElementById('analyzeBtn');
+const status = document.getElementById('aiStatus');
+btn.disabled = true;
+btn.textContent = '⏳ Elemzés folyamatban...';
+status.textContent = '';
+try {
+const resp = await fetch('/api/chat/' + activeCid + '/analyze', {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+const data = await resp.json();
+if (data.error) { status.textContent = '❌ ' + data.error; }
+else { status.textContent = '✅ Kész!'; loadAiResults(activeCid); loadChats(); }
+} catch(e) {
+status.textContent = '❌ Hálózati hiba';
+} finally {
+btn.disabled = false;
+btn.textContent = '✨ Elemzés indítása';
+}
+}
+
+async function toggleTodoDone(todoId, done) {
+// A chat_todos tábla frissítése a manifest-en keresztül
+if (!activeCid) return;
+await fetch('/api/chat/' + activeCid + '/metadata', {
+method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({action:'toggle_todo',todo_id:todoId,done:done})
+});
 }
 
 function esc(s) {

@@ -7,3 +7,4 @@ aiohttp>=3.9.0
 
 pytest>=8.0
 ruff>=0.5
+openai>=1.0.0
