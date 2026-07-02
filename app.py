@@ -11,7 +11,10 @@ Használat:
     # Majd nyisd meg: http://localhost:5000
 """
 
+import json
 import os
+import sqlite3
+import sys
 import uuid
 import subprocess
 import threading
@@ -21,9 +24,44 @@ from pathlib import Path
 
 from flask import Flask, render_template, request, jsonify, Response
 
+# Manifest függvények importálása (az export.py nehéz függőségei miatt try/except)
+_init_manifest = _search_chats = _list_tags = _add_tags = _set_project = _toggle_favorite = _manifest_get_stats = _reindex_all_chats = None
+try:
+    sys.path.insert(0, str(Path(__file__).parent))
+    from export import (
+        _init_manifest, _search_chats, _list_tags,
+        _add_tags, _set_project, _toggle_favorite,
+        _manifest_get_stats, _reindex_all_chats,
+    )
+except ImportError:
+    pass  # A manifest funkciók nem elérhetőek, de az export toolok igen
+
 # ─── Inicializálás ───────────────────────────────────────────────────────────
 
 app = Flask(__name__)
+
+# Alapértelmezett output könyvtár
+DEFAULT_OUTPUT = "./exports"
+
+
+def _get_manifest():
+    """Visszaad egy manifest kapcsolatot."""
+    output_dir = Path(DEFAULT_OUTPUT)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return _init_manifest(output_dir)
+
+
+def _get_chat_data(cid: str) -> dict | None:
+    """Betölti egy chat JSON adatait."""
+    output_dir = Path(DEFAULT_OUTPUT)
+    pattern = f"*_{cid[:8]}.json"
+    json_files = list(output_dir.glob(f"json/{pattern}"))
+    if not json_files:
+        return None
+    try:
+        return json.loads(json_files[0].read_text(encoding="utf-8"))
+    except Exception:
+        return None
 
 # Aktív taskok tárolása: { task_id: { "proc": Popen, "queue": Queue, "output_dir": str } }
 tasks: dict[str, dict] = {}
@@ -217,6 +255,194 @@ def task_status(task_id: str):
         "returncode": task.get("returncode"),
         "output_dir": task.get("output_dir"),
     })
+
+
+# ─── Dashboard / Tudástár API ──────────────────────────────────────────────
+
+@app.route("/dashboard")
+def dashboard():
+    """Dashboard főoldal — tudástár böngésző."""
+    return render_template("dashboard.html")
+
+
+@app.route("/api/chats")
+def api_chats():
+    """Chat lista a manifestből metaadatokkal."""
+    conn = _get_manifest()
+    try:
+        rows = conn.execute("""
+            SELECT e.chat_id, e.title, e.last_exported_at, e.message_count, e.status, e.image_count,
+                   m.tags, m.project, m.is_favorite, m.processing_status, m.notes
+            FROM exports e
+            LEFT JOIN chat_metadata m ON e.chat_id = m.chat_id
+            ORDER BY e.last_exported_at DESC
+            LIMIT 500
+        """).fetchall()
+
+        chats = []
+        for row in rows:
+            cid, title, exported_at, msg_count, status, img_count, tags_json, project, fav, proc, notes = row
+            try:
+                tags = json.loads(tags_json) if tags_json else []
+            except json.JSONDecodeError:
+                tags = []
+            chats.append({
+                "cid": cid, "title": title or "Untitled",
+                "exported_at": exported_at, "message_count": msg_count or 0,
+                "status": status, "image_count": img_count or 0,
+                "tags": tags, "project": project,
+                "is_favorite": bool(fav), "processing_status": proc or "new",
+                "notes": notes,
+            })
+        return jsonify(chats)
+    finally:
+        conn.close()
+
+
+@app.route("/api/chat/<cid>")
+def api_chat_detail(cid: str):
+    """Egy chat részletes adatainak lekérése."""
+    data = _get_chat_data(cid)
+    if not data:
+        return jsonify({"error": "Chat not found"}), 404
+    return jsonify(data)
+
+
+@app.route("/api/search")
+def api_search():
+    """FTS5 keresés."""
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify([])
+    conn = _get_manifest()
+    try:
+        results = _search_chats(conn, q, limit=100)
+        return jsonify(results)
+    finally:
+        conn.close()
+
+
+@app.route("/api/tags")
+def api_tags():
+    """Összes egyedi címke."""
+    conn = _get_manifest()
+    try:
+        tags = _list_tags(conn)
+        return jsonify(tags)
+    finally:
+        conn.close()
+
+
+@app.route("/api/chat/<cid>/metadata", methods=["GET", "POST"])
+def api_chat_metadata(cid: str):
+    """Metaadatok lekérése és módosítása."""
+    conn = _get_manifest()
+    try:
+        if request.method == "GET":
+            row = conn.execute(
+                "SELECT tags, project, is_favorite, processing_status, notes FROM chat_metadata WHERE chat_id = ?",
+                (cid,),
+            ).fetchone()
+            if not row:
+                return jsonify({"tags": [], "project": None, "is_favorite": False, "processing_status": "new", "notes": None})
+            tags_json, project, fav, proc, notes = row
+            try:
+                tags = json.loads(tags_json) if tags_json else []
+            except json.JSONDecodeError:
+                tags = []
+            return jsonify({
+                "tags": tags, "project": project, "is_favorite": bool(fav),
+                "processing_status": proc or "new", "notes": notes,
+            })
+
+        # POST: módosítás
+        data = request.get_json(force=True)
+        action = data.get("action", "")
+
+        if action == "add_tags":
+            _add_tags(conn, cid, data.get("tags", []))
+        elif action == "remove_tags":
+            from export import _ensure_metadata_row
+            _ensure_metadata_row(conn, cid)
+            row = conn.execute("SELECT tags FROM chat_metadata WHERE chat_id = ?", (cid,)).fetchone()
+            existing = []
+            if row and row[0]:
+                try:
+                    existing = json.loads(row[0])
+                except json.JSONDecodeError:
+                    existing = []
+            remove = set(t.lower() for t in data.get("tags", []))
+            new_tags = [t for t in existing if t not in remove]
+            conn.execute(
+                "UPDATE chat_metadata SET tags = ?, updated_at = ? WHERE chat_id = ?",
+                (json.dumps(new_tags), __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(), cid),
+            )
+            conn.commit()
+        elif action == "set_project":
+            _set_project(conn, cid, data.get("project", ""))
+        elif action == "toggle_favorite":
+            _toggle_favorite(conn, cid)
+        elif action == "set_notes":
+            conn.execute(
+                "INSERT OR REPLACE INTO chat_metadata (chat_id, notes, updated_at) VALUES (?, ?, datetime('now'))",
+                (cid, data.get("notes", ""), __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()),
+            )
+            conn.commit()
+
+        # Visszaadjuk a frissített metaadatokat
+        row = conn.execute(
+            "SELECT tags, project, is_favorite, processing_status, notes FROM chat_metadata WHERE chat_id = ?",
+            (cid,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "Metadata not found"}), 404
+        tags_json, project, fav, proc, notes = row
+        try:
+            tags = json.loads(tags_json) if tags_json else []
+        except json.JSONDecodeError:
+            tags = []
+        return jsonify({
+            "tags": tags, "project": project, "is_favorite": bool(fav),
+            "processing_status": proc or "new", "notes": notes,
+        })
+    finally:
+        conn.close()
+
+
+@app.route("/api/stats")
+def api_stats():
+    """Statisztikák a manifestből."""
+    conn = _get_manifest()
+    try:
+        mstats = _manifest_get_stats(conn)
+        total_msgs = conn.execute("SELECT COALESCE(SUM(message_count), 0) FROM exports").fetchone()[0]
+        total_imgs = conn.execute("SELECT COALESCE(SUM(image_count), 0) FROM exports").fetchone()[0]
+        tag_count = len(_list_tags(conn))
+        fav_count = conn.execute(
+            "SELECT COUNT(*) FROM chat_metadata WHERE is_favorite = 1"
+        ).fetchone()[0]
+        return jsonify({
+            "total_chats": mstats["total"],
+            "ok": mstats["ok"],
+            "failed": mstats["failed"],
+            "total_messages": total_msgs,
+            "total_images": total_imgs,
+            "tag_count": tag_count,
+            "favorite_count": fav_count,
+        })
+    finally:
+        conn.close()
+
+
+@app.route("/api/reindex", methods=["POST"])
+def api_reindex():
+    """Újraindexeli a chat-eket."""
+    conn = _get_manifest()
+    try:
+        count = _reindex_all_chats(conn, Path(DEFAULT_OUTPUT))
+        return jsonify({"reindexed": count})
+    finally:
+        conn.close()
 
 
 # ─── Main ────────────────────────────────────────────────────────────────────
