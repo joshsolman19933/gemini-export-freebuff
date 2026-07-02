@@ -176,7 +176,7 @@ async def _download_turn_images(
 
     if downloaded > 0 and print_lock:
         async with print_lock:
-            print(f"[{index}/{total}]   └─ {downloaded} kep letoltve", flush=True)
+            print(f"[{index}/{total}]   └─ {downloaded} kép letoltve", flush=True)
 
     return downloaded
 
@@ -344,8 +344,8 @@ h1{font-size:1.5rem;margin-bottom:.25rem;background:linear-gradient(135deg,var(-
     body = f"""<h1>{html_mod.escape(title)}</h1>
 <div class="meta">
   Chat ID: <code>{html_mod.escape(cid)}</code><br>
-  Exportalva: {html_mod.escape(exported_at)}<br>
-  Uzenetek: {len(turns)}
+  Exportálva: {html_mod.escape(exported_at)}<br>
+  Üzenetek: {len(turns)}
 </div>
 {''.join(turns_html)}"""
 
@@ -393,7 +393,7 @@ def export_chat_to_csv(csv_writer, chat_data: dict) -> None:
 
 
 def generate_all_chats_html(all_chats_data: list[dict], output_dir: Path) -> Path:
-    """Osszes beszelgetes egyetlen, onallo HTML fajlban - navigacioval, keresssel."""
+    """Összes beszélgetés egyetlen, onallo HTML fajlban - navigációval, keresssel."""
     filepath = output_dir / "all_chats.html"
 
     # Navigáció
@@ -408,7 +408,7 @@ def generate_all_chats_html(all_chats_data: list[dict], output_dir: Path) -> Pat
             f'{safe_title[:80]}</a>'
         )
         chat_html = _build_html_chat_content(chat, include_style=False, full_document=False)
-        # all_chats.html az exports/ gyokerben van, nem alkonyvtarban
+        # all_chats.html az exports/ gyokerben van, nem alkönyvtárban
         chat_html = chat_html.replace("../media/", "media/")
         chat_contents.append(f'<div class="chat-section" id="chat-{i}">{chat_html}</div>')
 
@@ -451,7 +451,7 @@ h1{{font-size:1.5rem;background:linear-gradient(135deg,var(--accent),#a78bfa);-w
 <body>
 <nav class="sidebar">
 <h2>Beszélgetések ({len(all_chats_data)})</h2>
-<input type="text" class="search-box" placeholder="Kereses..." oninput="filterChats(this.value)" autofocus>
+<input type="text" class="search-box" placeholder="Keresés..." oninput="filterChats(this.value)" autofocus>
 <div id="navList">{''.join(nav_items)}</div>
 </nav>
 <main class="main">
@@ -550,31 +550,37 @@ def _manifest_needs_export(
     conn: sqlite3.Connection,
     cid: str,
     formats: list[str],
-    current_msg_count: int | None = None,
+    chat_timestamp: float | None = None,
 ) -> bool:
     """Eldönti, hogy egy chatet újra kell-e exportálni.
 
     Újraexportálás kell, ha:
     - Még sosem volt exportálva (nincs a manifestben)
     - Az előző export sikertelen volt
-    - Az üzenetszám megváltozott (új üzenetek)
+    - A chat timestamp-je újabb, mint az utolsó export (új üzenetek lehetnek)
     - Új formátumban kérjük, ami még nincs meg
     """
     row = conn.execute(
-        "SELECT status, message_count, exported_formats FROM exports WHERE chat_id = ?",
+        "SELECT status, last_exported_at, exported_formats FROM exports WHERE chat_id = ?",
         (cid,),
     ).fetchone()
 
     if row is None:
         return True  # Soha nem volt exportálva
 
-    status, stored_msg_count, stored_formats_json = row
+    status, last_exported_at, stored_formats_json = row
 
     if status == "failed":
         return True  # Előző export sikertelen volt
 
-    if current_msg_count is not None and stored_msg_count != current_msg_count:
-        return True  # Változott az üzenetszám
+    # Timestamp alapú változásdetektálás: ha a chat frissebb, mint az utolsó export
+    if chat_timestamp is not None and last_exported_at:
+        try:
+            last_ts = datetime.fromisoformat(last_exported_at).timestamp()
+            if chat_timestamp > last_ts:
+                return True  # A chat módosult az utolsó export óta
+        except (ValueError, OSError):
+            pass
 
     try:
         stored_formats = set(json.loads(stored_formats_json))
@@ -692,6 +698,37 @@ async def _fetch_chats_paginated(client: GeminiClient, max_total: int) -> list[C
     return all_chats
 
 
+# ─── Retry/backoff logika ──────────────────────────────────────────────────
+
+async def _retry_read_chat(
+    client: GeminiClient,
+    cid: str,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+) -> object:
+    """API hívás újrapróbálása exponential backoff-fal.
+
+    Args:
+        client: GeminiClient példány
+        cid: Chat ID
+        max_retries: Maximális újrapróbálások száma (alap: 3)
+        base_delay: Alap késleltetés másodpercben (exponenciálisan nő: 1s, 2s, 4s)
+
+    Returns:
+        A history objektum, vagy kivételt dob.
+    """
+    last_error = None
+    for attempt in range(max_retries + 1):
+        try:
+            return await client.read_chat(cid)
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries:
+                wait = base_delay * (2 ** attempt)
+                await asyncio.sleep(wait)
+    raise last_error  # type: ignore[misc]
+
+
 # ─── Fő exportálási logika ───────────────────────────────────────────────────
 
 async def _export_single_chat(
@@ -708,36 +745,47 @@ async def _export_single_chat(
     csv_lock: asyncio.Lock,
     print_lock: asyncio.Lock,
     http_session: aiohttp.ClientSession,
+    manifest_conn: sqlite3.Connection | None = None,
 ) -> dict | None:
     """Egyetlen beszélgetés letöltése és exportálása. Párhuzamos futtatásra tervezve.
 
-    Visszaad egy dict-et az eredményekkel, vagy None-t ha kihagytuk/sikertelen.
+    Visszaad egy dict-et az eredményekkel.
     """
     cid = chat_info.cid
     title = getattr(chat_info, "title", "Untitled")
+    title = title or "Untitled"
 
-    # Resume: már létező fájlok kihagyása (semaphore nélkül, gyors filesystem check)
-    if resume and already_exported(cid, output_dir, formats):
+    # Manifest-alapú resume: timestamp összehasonlítással érzékeli a változásokat
+    chat_ts = getattr(chat_info, "timestamp", 0) or 0
+    if resume and manifest_conn and not _manifest_needs_export(manifest_conn, cid, formats, chat_ts):
         async with print_lock:
-            print(f"[{index}/{total}] {title[:80]}... [~] (mar exportalva)", flush=True)
+            print(f"[{index}/{total}] {title[:80]}... [~] (már exportálva)", flush=True)
+        return {"status": "skipped", "cid": cid}
+
+    # Fallback: fájl-alapú resume (ha nincs manifest vagy --no-resume nélkül fut)
+    if resume and not manifest_conn and already_exported(cid, output_dir, formats):
+        async with print_lock:
+            print(f"[{index}/{total}] {title[:80]}... [~] (már exportálva)", flush=True)
         return {"status": "skipped", "cid": cid}
 
     async with sem:
-        # Beszélgetés előzményeinek lekérése
+        # Beszélgetés előzményeinek lekérése retry/backoff-fal
         try:
-            history = await client.read_chat(cid)
+            history = await _retry_read_chat(client, cid)
         except Exception as e:
             async with print_lock:
-                print(f"[{index}/{total}] {title[:80]}... [!] HIBA: {e}", flush=True)
+                print(f"[{index}/{total}] {title[:80]}... [!] Hiba: {e}", flush=True)
+            if manifest_conn:
+                _manifest_mark_failed(manifest_conn, cid, title, str(e))
             return {"status": "failed", "cid": cid}
 
-    # Polite pause a semaphore-n KÍVÜL — felszabadítja a slot-ot a következő task számára
+    # Polite pause a semaphore-n KÍVÜL
     if delay > 0:
         await asyncio.sleep(delay)
 
     if not history:
         async with print_lock:
-            print(f"[{index}/{total}] {title[:80]}... [~] (ures elozmeny)", flush=True)
+            print(f"[{index}/{total}] {title[:80]}... [~] (üres előzmény)", flush=True)
         return {"status": "skipped", "cid": cid}
 
     # ChatTurn objektumok feldolgozása
@@ -767,11 +815,18 @@ async def _export_single_chat(
                 export_chat_to_csv(csv_writer, chat_data)
     except Exception as e:
         async with print_lock:
-            print(f"[{index}/{total}] {title[:80]}... [!] FAJL HIBA: {e}", flush=True)
+            print(f"[{index}/{total}] {title[:80]}... [!] FÁJL Hiba: {e}", flush=True)
+        if manifest_conn:
+            _manifest_mark_failed(manifest_conn, cid, title, str(e))
         return {"status": "failed", "cid": cid}
 
+    # Sikeres export rögzítése a manifestben
+    if manifest_conn:
+        img_count = sum(len(t.get("images", [])) for t in turns)
+        _manifest_mark_exported(manifest_conn, cid, title, len(turns), formats, img_count)
+
     async with print_lock:
-        print(f"[{index}/{total}] {title[:80]}... [+] ({len(turns)} uzenet)", flush=True)
+        print(f"[{index}/{total}] {title[:80]}... [+] ({len(turns)} üzenet)", flush=True)
 
         ts = getattr(chat_info, "timestamp", 0)
         return {
@@ -791,7 +846,7 @@ async def export_all_chats(
     resume: bool,
     concurrency: int = 3,
 ) -> dict:
-    """Parhuzamosan letolti es exportalja az osszes beszelgetest asyncio.gather-rel."""
+    """Párhuzamosan letolti es exportalja az összes beszélgetést asyncio.gather-rel."""
 
     print("\n[*] Beszélgetések listájának lekérése...")
     chats = list(client.list_chats()) if client.list_chats() else []
@@ -802,7 +857,7 @@ async def export_all_chats(
 
     total_count = len(chats)
     print(f"[+] {total_count} beszélgetés található.")
-    print(f"[i] Parhuzamos letoltes: {concurrency} szalon (asyncio.gather)\n")
+    print(f"[i] Párhuzamos letöltés: {concurrency} szalon (asyncio.gather)\n")
 
     # Szinkronizációs primitívek
     sem = asyncio.Semaphore(concurrency)
@@ -819,6 +874,9 @@ async def export_all_chats(
         csv_writer = csv.writer(csv_file)
         csv_writer.writerow(["chat_id", "chat_title", "role", "text"])
 
+    # Manifest adatbázis inicializálása
+    manifest_conn = _init_manifest(output_dir)
+
     # aiohttp session a kép letöltésekhez
     http_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30))
 
@@ -829,7 +887,7 @@ async def export_all_chats(
                 client, chat_info, i, total_count,
                 output_dir, formats, resume, delay,
                 sem, csv_writer, csv_lock, print_lock,
-                http_session,
+                http_session, manifest_conn,
             )
             for i, chat_info in enumerate(chats, 1)
         ]
@@ -871,12 +929,12 @@ async def export_all_chats(
                 ),
                 encoding="utf-8",
             )
-            print(f"\n[*] Osszesitett JSON: {all_export_path}")
+            print(f"\n[*] Összesitett JSON: {all_export_path}")
 
         # Single-file HTML (összes chat egy fájlban)
         if "html" in formats and all_chats_data:
             all_html_path = generate_all_chats_html(all_chats_data, output_dir)
-            print(f"[*] Osszesitett HTML: {all_html_path}")
+            print(f"[*] Összesitett HTML: {all_html_path}")
 
         # Markdown index
         if "markdown" in formats and all_chats_data:
@@ -913,6 +971,7 @@ async def export_all_chats(
             except Exception:
                 pass
         await http_session.close()
+        manifest_conn.close()
 
 
 # ─── Szűrés és listázás ─────────────────────────────────────────────────────
@@ -925,7 +984,7 @@ def parse_date(date_str: str) -> float:
             return dt.replace(tzinfo=timezone.utc).timestamp()
         except ValueError:
             continue
-    raise ValueError(f"Nem ertelmezheto datum: {date_str}. Hasznalj ÉÉÉÉ-HH-NN formatumot.")
+    raise ValueError(f"Nem ertelmezheto dátum: {date_str}. Hasznalj ÉÉÉÉ-HH-NN formátumot.")
 
 
 def filter_chats(
@@ -968,10 +1027,10 @@ def filter_chats(
 def list_chats_only(chats: list) -> None:
     """Kilistázza a beszélgetéseket egy szép táblázatban, export nélkül."""
     if not chats:
-        print("\n  Nincsenek megjelenitheto beszelgetesek.")
+        print("\n  Nincsenek megjelenitheto beszélgetések.")
         return
 
-    print(f"\n  {'#':<5} {'Cim':<60} {'Datum':<20} {'Chat ID'}")
+    print(f"\n  {'#':<5} {'Cim':<60} {'Dátum':<20} {'Chat ID'}")
     print(f"  {'-'*4}  {'-'*60} {'-'*20} {'-'*20}")
 
     for i, chat in enumerate(chats, 1):
@@ -990,14 +1049,14 @@ def list_chats_only(chats: list) -> None:
 
         print(f"  {i:<5} {display_title:<60} {date_str:<20} {cid}")
 
-    print(f"\n  Osszesen: {len(chats)} beszelgetes.")
+    print(f"\n  Összesen: {len(chats)} beszélgetés.")
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Gemini Chat Exporter -- Az osszes Gemini beszelgetes exportalasa",
+        description="Gemini Chat Exporter -- Az összes Gemini beszélgetés exportalasa",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Példák:
@@ -1074,7 +1133,7 @@ Példák:
         "--concurrency", "-c",
         type=int,
         default=3,
-        help="Parhuzamos letoltesek szama (alap: 3). Novelheted a sebessegert, de tul magas erteknel rate-limit lehet.",
+        help="Párhuzamos letöltések szama (alap: 3). Novelheted a sebessegert, de tul magas erteknel rate-limit lehet.",
     )
     return parser.parse_args()
 
@@ -1109,7 +1168,7 @@ async def main():
     if args.to_date:
         try:
             to_ts = parse_date(args.to_date)
-            # Ha a datum tiszta datum (nincs idokomponens), a nap vegeig tartson
+            # Ha a dátum tiszta dátum (nincs időkomponens), a nap vegeig tartson
             if "T" not in args.to_date and " " not in args.to_date:
                 to_ts += 86399  # +23:59:59
         except ValueError as e:
@@ -1119,7 +1178,7 @@ async def main():
 
     # Validacio: --from nem lehet kesobbi mint --to
     if from_ts and to_ts and from_ts > to_ts:
-        print("[!] A --from datum kesobbi mint a --to datum.")
+        print("[!] A --from dátum kesobbi mint a --to dátum.")
         sys.exit(1)
 
     # Kimeneti könyvtár létrehozása (csak ha nem list-only mód)
@@ -1137,20 +1196,20 @@ async def main():
     print(f"  Resume:            {'igen' if resume else 'nem'}")
     print(f"  Auto-cookies:      {'igen' if auto_cookies else 'nem'}")
     print(f"  Max chats:         {max_chats}")
-    print(f"  Parhuzamos let.:   {args.concurrency} szalon")
+    print(f"  Párhuzamos let.:   {args.concurrency} szalon")
     if from_ts:
-        print(f"  Datum -tol:        {args.from_date}")
+        print(f"  Dátum -tol:        {args.from_date}")
     if to_ts:
-        print(f"  Datum -ig:         {args.to_date}")
+        print(f"  Dátum -ig:         {args.to_date}")
     if keyword:
-        print(f"  Kulcsszo szures:   '{keyword}'")
+        print(f"  Kulcsszó szűrés:   '{keyword}'")
     if list_only:
         print(f"  Lista mod:         igen (export nelkul)")
     print("=" * 60)
 
     # Client inicializálása
     if auto_cookies:
-        print("\n[*] Cookie-k automatikus importalasa a bongeszobol...")
+        print("\n[*] Cookie-k automatikus importalasa a böngészőbol...")
         try:
             client = GeminiClient()
         except Exception as e:
@@ -1178,33 +1237,33 @@ async def main():
         client = GeminiClient(secure_1psid, secure_1psidts)
 
     # Inicializálás
-    print("\n[*] Kapcsolodas a Geminihez...")
+    print("\n[*] Kapcsolódás a Geminihez...")
     try:
         await client.init(timeout=30, auto_close=False, auto_refresh=True)
         print("[+] Sikeresen csatlakozva.")
     except Exception as e:
-        print(f"[!] Sikertelen inicializalas: {e}")
+        print(f"[!] Sikertelen inicializálás: {e}")
         print("   Ellenőrizd a cookie-kat -- lehet, hogy lejártak vagy érvénytelenek.")
         sys.exit(1)
 
     # A gemini_webapi alapból csak 13 beszélgetést kér le (recent=13),
     # és a szerver ~100-as batch limitet használ.
     # Page token alapú paginációval lekérjük az ÖSSZES beszélgetést.
-    print(f"[*] Osszes beszelgetes lekerese paginacioval (max. {max_chats})...")
+    print(f"[*] Összes beszélgetés lekerese paginacioval (max. {max_chats})...")
     try:
         all_chats = await _fetch_chats_paginated(client, max_chats)
         # Felülírjuk a client belső listáját a teljes listával
         client._recent_chats = all_chats
-        print(f"[+] {len(all_chats)} beszelgetes betoltve (paginacio: OK).\n")
+        print(f"[+] {len(all_chats)} beszélgetés betoltve (paginacio: OK).\n")
     except Exception as e:
-        print(f"[!] Figyelmeztetes: a paginalt lekerdezes hibazott: {e}")
+        print(f"[!] Figyelmeztetés: a paginalt lekerdezes hibazott: {e}")
         # Fallback: próbáljuk a sima _fetch_recent_chats-et
         try:
             await client._fetch_recent_chats(recent=max_chats)
             chat_count = len(client._recent_chats) if client._recent_chats else 0
-            print(f"[+] {chat_count} beszelgetes betoltve (fallback mod).\n")
+            print(f"[+] {chat_count} beszélgetés betoltve (fallback mod).\n")
         except Exception:
-            print("   Az alap 13 beszelgetessel folytatodik.\n")
+            print("   Az alap 13 beszélgetéssel folytatodik.\n")
 
     # ── Szűrés ─────────────────────────────────────────────────────────
 
@@ -1216,8 +1275,8 @@ async def main():
             from_ts=from_ts, to_ts=to_ts, keyword=keyword,
         )
         client._recent_chats = filtered_chats
-        print(f"[i] Szures: {filter_stats['filtered']} talalat / {filter_stats['total']} osszesbol "
-              f"(datum: -{filter_stats['reason_date']}, kulcsszo: -{filter_stats['reason_keyword']})\n")
+        print(f"[i] Szűrés: {filter_stats['filtered']} talalat / {filter_stats['total']} összesbol "
+              f"(dátum: -{filter_stats['reason_date']}, kulcsszo: -{filter_stats['reason_keyword']})\n")
 
     # ── Lista mód (--list-chats) ────────────────────────────────────────
 
@@ -1235,19 +1294,28 @@ async def main():
     # ── Összesítés ───────────────────────────────────────────────────────
 
     print("\n" + "=" * 60)
-    print("  EXPORT KESZ")
+    print("  EXPORT Kész")
     print("=" * 60)
-    print(f"  Osszes beszelgetes:  {stats['total']}")
-    print(f"  Sikeresen exportalt: {stats['exported']}")
+    print(f"  Összes beszélgetés:  {stats['total']}")
+    print(f"  Sikeresen exportált: {stats['exported']}")
     print(f"  Kihagyva (resume):   {stats['skipped']}")
     print(f"  Sikertelen:          {stats['failed']}")
-    print(f"  Eltelt ido:          {elapsed:.1f} mp")
+    print(f"  Eltelt idő:          {elapsed:.1f} mp")
     if "total_messages" in stats:
-        print(f"  Osszes uzenet:       {stats['total_messages']}")
+        print(f"  Összes Üzenet:       {stats['total_messages']}")
     if "oldest_chat" in stats:
-        print(f"  Legregebbi chat:     {stats['oldest_chat']}")
-        print(f"  Legujabb chat:       {stats['newest_chat']}")
-    print(f"  Kimeneti konyvtar:   {output_dir.resolve()}")
+        print(f"  Legrégebbi chat:     {stats['oldest_chat']}")
+        print(f"  Legújabb chat:       {stats['newest_chat']}")
+    print(f"  Kimeneti könyvtár:   {output_dir.resolve()}")
+    # Manifest statisztika
+    try:
+        manifest_conn = _init_manifest(output_dir)
+        mstats = _manifest_get_stats(manifest_conn)
+        manifest_conn.close()
+        if mstats["total"] > 0:
+            print(f"  Manifest:            {mstats['ok']} OK, {mstats['failed']} sikertelen")
+    except Exception:
+        pass
     print("=" * 60)
 
 
