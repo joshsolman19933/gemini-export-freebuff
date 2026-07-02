@@ -1,0 +1,25 @@
+# Environment variables (contains sensitive cookies!)
+.env
+
+# Export output directory
+exports/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

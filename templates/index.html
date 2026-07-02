@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Chat Exporter</title>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --surface2: #242836;
+            --border: #2e3345;
+            --text: #e1e4ed;
+            --text-dim: #8b8fa8;
+            --accent: #6c8eff;
+            --accent-hover: #8aa4ff;
+            --success: #34d399;
+            --error: #f87171;
+            --warning: #fbbf24;
+            --radius: 10px;
+            --transition: 0.2s ease;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+            background-image:
+                radial-gradient(ellipse at 20% 50%, rgba(108, 142, 255, 0.04) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(52, 211, 153, 0.03) 0%, transparent 50%);
+        }
+
+        .container {
+            max-width: 780px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem 4rem;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding-top: 1rem;
+        }
+
+        .header .icon {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+            display: inline-block;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+        }
+
+        .header p {
+            color: var(--text-dim);
+            font-size: 0.95rem;
+            margin-top: 0.3rem;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 1.25rem;
+            transition: border-color var(--transition);
+        }
+
+        .card:hover { border-color: var(--accent); }
+
+        .card-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--accent);
+            margin-bottom: 1rem;
+        }
+
+        /* Form */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+        .form-group.full { grid-column: 1 / -1; }
+
+        label {
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--text-dim);
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.65rem 0.85rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            transition: border-color var(--transition), box-shadow var(--transition);
+            outline: none;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(108, 142, 255, 0.15);
+        }
+
+        input::placeholder { color: #4a4f64; }
+
+        select {
+            font-family: inherit;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b8fa8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.85rem center;
+            padding-right: 2.2rem;
+        }
+
+        /* Toggle / Checkbox */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .toggle-row input[type="checkbox"] {
+            width: 1.1rem;
+            height: 1.1rem;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .toggle-row label {
+            cursor: pointer;
+            color: var(--text);
+            font-size: 0.9rem;
+            font-weight: 400;
+        }
+
+        /* Button */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.75rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all var(--transition);
+            font-family: inherit;
+            letter-spacing: 0.01em;
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: linear-gradient(135deg, var(--accent), #8b5cf6);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(108, 142, 255, 0.25);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 28px rgba(108, 142, 255, 0.35);
+        }
+
+        .btn-primary:active:not(:disabled) { transform: translateY(0); }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-spinner {
+            display: none;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        .btn.loading .btn-spinner { display: inline-block; }
+        .btn.loading .btn-text { display: none; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Progress Bar */
+        .progress-container {
+            height: 4px;
+            background: var(--surface2);
+            border-radius: 2px;
+            margin: 1rem 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .progress-container.visible { opacity: 1; }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--success));
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* Log Terminal */
+        .terminal {
+            background: #0a0c14;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .terminal-header {
+            background: var(--surface2);
+            padding: 0.5rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .terminal-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .terminal-dot.red { background: #ff5f57; }
+        .terminal-dot.yellow { background: #febc2e; }
+        .terminal-dot.green { background: #28c840; }
+
+        .terminal-title {
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            margin-left: 0.5rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        .log {
+            padding: 1rem;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 0.82rem;
+            line-height: 1.5;
+            height: 350px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: #a0a8c0;
+        }
+
+        .log .line { padding: 1px 0; }
+        .log .line-error { color: var(--error); }
+        .log .line-success { color: var(--success); }
+        .log .line-info { color: var(--accent); }
+        .log .line-warning { color: var(--warning); }
+        .log .line-header { color: #e1e4ed; font-weight: 600; }
+
+        .log::-webkit-scrollbar { width: 6px; }
+        .log::-webkit-scrollbar-track { background: transparent; }
+        .log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+        /* Summary */
+        .summary {
+            display: none;
+            background: var(--surface);
+            border: 1px solid var(--success);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-top: 1rem;
+            animation: slideUp 0.4s ease;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .summary.visible { display: block; }
+
+        .summary h3 { color: var(--success); margin-bottom: 0.5rem; }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 0.75rem;
+            background: var(--surface2);
+            border-radius: 8px;
+        }
+
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .stat-label {
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Status badges */
+        .status-running {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--warning);
+            font-size: 0.85rem;
+        }
+
+        .status-running::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: var(--warning);
+            border-radius: 50%;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            margin-top: 2rem;
+        }
+
+        .footer code {
+            background: var(--surface2);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.78rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .form-grid { grid-template-columns: 1fr; }
+            .stat-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!-- Header -->
+        <header class="header">
+            <div class="icon">✨</div>
+            <h1>Gemini Chat Exporter</h1>
+            <p>Az összes Gemini beszélgetés exportálása — egy kattintással</p>
+        </header>
+
+        <!-- Configuration Card -->
+        <div class="card">
+            <div class="card-title">⚙️ Beállítások</div>
+
+            <form id="exportForm">
+                <!-- Auto-cookies toggle -->
+                <div class="form-group full" style="margin-bottom: 1rem;">
+                    <div class="toggle-row">
+                        <input type="checkbox" id="autoCookies">
+                        <label for="autoCookies">Cookie-k automatikus importálása böngészőből (browser-cookie3)</label>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <!-- Cookie fields -->
+                    <div class="form-group" id="cookie1Group">
+                        <label for="cookie1">__Secure-1PSID</label>
+                        <input type="text" id="cookie1" placeholder="Másold be a cookie értékét…">
+                    </div>
+                    <div class="form-group" id="cookie2Group">
+                        <label for="cookie2">__Secure-1PSIDTS</label>
+                        <input type="text" id="cookie2" placeholder="Másold be a cookie értékét…">
+                    </div>
+
+                    <!-- Format -->
+                    <div class="form-group">
+                        <label for="format">Formátum</label>
+                        <select id="format">
+                            <option value="both">JSON + Markdown</option>
+                            <option value="json">Csak JSON</option>
+                            <option value="markdown">Csak Markdown</option>
+                            <option value="html">Csak HTML</option>
+                            <option value="csv">Csak CSV</option>
+                            <option value="all">Minden formátum</option>
+                        </select>
+                    </div>
+
+                    <!-- Delay -->
+                    <div class="form-group">
+                        <label for="delay">Késleltetés (mp)</label>
+                        <input type="number" id="delay" value="0.5" min="0" max="10" step="0.1">
+                    </div>
+
+                    <!-- Max Chats -->
+                    <div class="form-group">
+                        <label for="maxChats">Max. beszélgetések</label>
+                        <input type="number" id="maxChats" value="2000" min="1" max="10000" step="1">
+                    </div>
+
+                    <!-- Concurrency -->
+                    <div class="form-group">
+                        <label for="concurrency">Párhuzamos letöltések</label>
+                        <input type="number" id="concurrency" value="3" min="1" max="10" step="1">
+                    </div>
+
+                    <!-- Output directory -->
+                    <div class="form-group full">
+                        <label for="outputDir">Kimeneti könyvtár</label>
+                        <input type="text" id="outputDir" value="./exports">
+                    </div>
+
+                    <!-- Date filter -->
+                    <div class="form-group">
+                        <label for="fromDate">Dátum -tól (ÉÉÉÉ-HH-NN)</label>
+                        <input type="text" id="fromDate" placeholder="pl. 2024-01-01">
+                    </div>
+                    <div class="form-group">
+                        <label for="toDate">Dátum -ig (ÉÉÉÉ-HH-NN)</label>
+                        <input type="text" id="toDate" placeholder="pl. 2024-12-31">
+                    </div>
+
+                    <!-- Keyword filter -->
+                    <div class="form-group full">
+                        <label for="keywordFilter">Kulcsszó szűrés (chat címére)</label>
+                        <input type="text" id="keywordFilter" placeholder="pl. Python">
+                    </div>
+                </div>
+
+                <!-- List-only mode toggle -->
+                <div class="form-group full" style="margin-top: 1rem;">
+                    <div class="toggle-row">
+                        <input type="checkbox" id="listOnly">
+                        <label for="listOnly">Csak listázás (export nélkül)</label>
+                    </div>
+                </div>
+
+                <!-- Submit -->
+                <button type="submit" class="btn btn-primary" id="startBtn" style="margin-top: 1.25rem;">
+                    <span class="btn-spinner"></span>
+                    <span class="btn-text">🚀 Exportálás indítása</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <!-- Log Terminal -->
+        <div class="terminal" id="terminal" style="display: none;">
+            <div class="terminal-header">
+                <span class="terminal-dot red"></span>
+                <span class="terminal-dot yellow"></span>
+                <span class="terminal-dot green"></span>
+                <span class="terminal-title">export.log</span>
+                <span class="status-running" id="statusBadge" style="margin-left: auto;">Fut…</span>
+            </div>
+            <div class="log" id="log"><span style="color: #4a4f64;">Várakozás az indításra…</span></div>
+        </div>
+
+        <!-- Summary -->
+        <div class="summary" id="summary">
+            <h3>✅ Export kész!</h3>
+            <p>Fájlok mentve ide: <strong><code id="outPath"></code></strong></p>
+            <div class="stat-grid">
+                <div class="stat-item">
+                    <div class="stat-value" id="statTotal">–</div>
+                    <div class="stat-label">Összes chat</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="statExported" style="color: var(--success);">–</div>
+                    <div class="stat-label">Exportálva</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="statSkipped" style="color: var(--warning);">–</div>
+                    <div class="stat-label">Kihagyva</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="statFailed" style="color: var(--error);">–</div>
+                    <div class="stat-label">Sikertelen</div>
+                </div>
+            </div>
+        </div>
+
+        <p class="footer">
+            Cookie-k kinyerése: <code>gemini.google.com</code> → <strong>F12</strong> → Application → Cookies
+        </p>
+    </div>
+
+    <script>
+        // ── DOM references ───────────────────────────────────────────────
+        const form = document.getElementById('exportForm');
+        const startBtn = document.getElementById('startBtn');
+        const logDiv = document.getElementById('log');
+        const terminal = document.getElementById('terminal');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const summary = document.getElementById('summary');
+        const statusBadge = document.getElementById('statusBadge');
+        const autoCookies = document.getElementById('autoCookies');
+        const cookie1Group = document.getElementById('cookie1Group');
+        const cookie2Group = document.getElementById('cookie2Group');
+
+        let totalChats = 0;
+        let processedChats = 0;
+        let finished = false;
+
+        // ── Auto-cookies toggle ──────────────────────────────────────────
+        autoCookies.addEventListener('change', () => {
+            const isAuto = autoCookies.checked;
+            cookie1Group.style.opacity = isAuto ? '0.4' : '1';
+            cookie2Group.style.opacity = isAuto ? '0.4' : '1';
+            document.getElementById('cookie1').disabled = isAuto;
+            document.getElementById('cookie2').disabled = isAuto;
+        });
+
+        // ── Line classifier ──────────────────────────────────────────────
+        function classifyLine(text) {
+            const t = text.trim();
+            if (t.startsWith('[!]') || t.includes('HIBA') || t.includes('Error') || t.includes('Sikertelen'))
+                return 'line-error';
+            if (t.startsWith('[+]') || t.includes('sikeresen') || t.includes('KESZ'))
+                return 'line-success';
+            if (t.startsWith('[~]') || t.includes('figyelmeztetes'))
+                return 'line-warning';
+            if (t.includes('==='))
+                return 'line-header';
+            if (t.startsWith('[*]') || t.includes('listajanak') || t.includes('Kapcsolodas') || t.includes('Osszesitett'))
+                return 'line-info';
+            return '';
+        }
+
+        // ── Progress parsing ─────────────────────────────────────────────
+        function updateProgress(line) {
+            const match = line.match(/\[(\d+)\/(\d+)\]/);
+            if (match) {
+                processedChats = parseInt(match[1]);
+                totalChats = parseInt(match[2]);
+                const pct = totalChats > 0 ? (processedChats / totalChats) * 100 : 0;
+                progressBar.style.width = pct + '%';
+                progressContainer.classList.add('visible');
+            }
+        }
+
+        // ── Stats parsing from final summary ─────────────────────────────
+        function parseStat(line, label) {
+            const match = line.match(new RegExp(label + '[:\\\\s]*(\\\\d+)'));
+            return match ? parseInt(match[1]) : null;
+        }
+
+        function updateStats(line) {
+            if (line.includes('Összes beszélgetés') || line.includes('total')) {
+                const m = line.match(/(\d+)/);
+                if (m) document.getElementById('statTotal').textContent = m[1];
+            }
+            if (line.includes('Sikeresen exportált') || line.includes('exported')) {
+                const m = line.match(/(\d+)/);
+                if (m) document.getElementById('statExported').textContent = m[1];
+            }
+            if (line.includes('Kihagyva') || line.includes('skipped')) {
+                const m = line.match(/(\d+)/);
+                if (m) document.getElementById('statSkipped').textContent = m[1];
+            }
+            if (line.includes('Sikertelen') || line.includes('failed')) {
+                const m = line.match(/(\d+)/);
+                if (m) document.getElementById('statFailed').textContent = m[1];
+            }
+        }
+
+        // ── Form submit ──────────────────────────────────────────────────
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // UI reset
+            startBtn.classList.add('loading');
+            startBtn.disabled = true;
+            logDiv.innerHTML = '';
+            terminal.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressContainer.classList.remove('visible');
+            summary.classList.remove('visible');
+            statusBadge.style.display = 'inline-flex';
+            processedChats = 0;
+            totalChats = 0;
+            finished = false;
+
+            // POST /start
+            let response;
+            try {
+                response = await fetch('/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        auto_cookies: autoCookies.checked,
+                        secure_1psid: document.getElementById('cookie1').value.trim(),
+                        secure_1psidts: document.getElementById('cookie2').value.trim(),
+                        format: document.getElementById('format').value,
+                        output_dir: document.getElementById('outputDir').value.trim(),
+                        delay: parseFloat(document.getElementById('delay').value) || 0.5,
+                        max_chats: parseInt(document.getElementById('maxChats').value) || 2000,
+                        concurrency: parseInt(document.getElementById('concurrency').value) || 3,
+                        from_date: document.getElementById('fromDate').value.trim() || null,
+                        to_date: document.getElementById('toDate').value.trim() || null,
+                        keyword_filter: document.getElementById('keywordFilter').value.trim() || null,
+                        list_only: document.getElementById('listOnly').checked,
+                    })
+                });
+            } catch (err) {
+                logDiv.innerHTML = `<span class="line line-error">❌ Hálózati hiba: ${err.message}</span>`;
+                startBtn.classList.remove('loading');
+                startBtn.disabled = false;
+                return;
+            }
+
+            if (!response.ok) {
+                const err = await response.json();
+                logDiv.innerHTML = `<span class="line line-error">❌ ${err.error || 'Ismeretlen hiba'}</span>`;
+                startBtn.classList.remove('loading');
+                startBtn.disabled = false;
+                return;
+            }
+
+            const data = await response.json();
+            const taskId = data.task_id;
+
+            finished = false;
+
+            // SSE stream
+            const eventSource = new EventSource(`/stream/${taskId}`);
+
+            eventSource.onmessage = function (event) {
+                const line = event.data;
+                const cssClass = classifyLine(line);
+
+                const span = document.createElement('span');
+                span.className = 'line ' + cssClass;
+                span.textContent = line;
+                logDiv.appendChild(span);
+                logDiv.appendChild(document.createTextNode('\n'));
+                logDiv.scrollTop = logDiv.scrollHeight;
+
+                updateProgress(line);
+                updateStats(line);
+            };
+
+            eventSource.addEventListener('error', function () {
+                if (finished) return;
+                finished = true;
+
+                const span = document.createElement('span');
+                span.className = 'line line-error';
+                span.textContent = '⚠️ A kapcsolat megszakadt a szerverrel.';
+                logDiv.appendChild(span);
+                eventSource.close();
+                finishUI();
+            });
+
+            eventSource.addEventListener('complete', function (event) {
+                if (finished) return;
+                finished = true;
+                eventSource.close();
+
+                try {
+                    const info = JSON.parse(event.data);
+                    document.getElementById('outPath').textContent = info.output_dir;
+                } catch {}
+
+                // Parse final summary stats
+                const logText = logDiv.textContent;
+                const totalMatch = logText.match(/Összes beszélgetés:\s*(\d+)/);
+                const exportedMatch = logText.match(/Sikeresen exportált:\s*(\d+)/);
+                const skippedMatch = logText.match(/Kihagyva \(resume\):\s*(\d+)/);
+                const failedMatch = logText.match(/Sikertelen:\s*(\d+)/);
+
+                if (totalMatch) document.getElementById('statTotal').textContent = totalMatch[1];
+                if (exportedMatch) document.getElementById('statExported').textContent = exportedMatch[1];
+                if (skippedMatch) document.getElementById('statSkipped').textContent = skippedMatch[1];
+                if (failedMatch) document.getElementById('statFailed').textContent = failedMatch[1];
+
+                summary.classList.add('visible');
+                finishUI();
+            });
+        });
+
+        function finishUI() {
+            startBtn.classList.remove('loading');
+            startBtn.disabled = false;
+            statusBadge.style.display = 'none';
+            progressBar.style.width = '100%';
+        }
+    </script>
+</body>
+</html>
