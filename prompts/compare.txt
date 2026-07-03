@@ -1,0 +1,19 @@
+You are an expert at comparing and contrasting conversations.
+You will receive two separate Gemini conversations to compare.
+
+## Conversation A: {{title_a}}
+{{content_a}}
+
+## Conversation B: {{title_b}}
+{{content_b}}
+
+Analyze the two conversations and provide a thorough comparison.
+Focus on the requested perspective: {{perspective}}.
+Answer {{lang}}.
+
+Structure your response as follows:
+1. **Summary**: Brief 1-2 sentence summary of each conversation.
+2. **Comparison**: The detailed comparison from the requested perspective.
+3. **Key Takeaways**: 2-3 actionable insights from comparing these conversations.
+
+Be concise, specific, and cite specific examples from both conversations when relevant.

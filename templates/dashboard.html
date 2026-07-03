@@ -3,11 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0f1117" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f8f9fa" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tudastar">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
+<link rel="apple-touch-icon" href="/static/icons/icon-192.png">
 <title>Gemini Tudástár</title>
+<link rel="stylesheet" id="hljsTheme" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.7/chart.umd.min.js"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
-:root{--bg:#0f1117;--surface:#1a1d27;--surface2:#242836;--border:#2e3345;--text:#e1e4ed;--text-dim:#8b8fa8;--accent:#6c8eff;--accent2:#a78bfa;--success:#34d399;--error:#f87171;--warning:#fbbf24;--radius:8px;--nav-w:280px;--meta-w:300px}
+:root{--bg:#0f1117;--surface:#1a1d27;--surface2:#242836;--border:#2e3345;--text:#e1e4ed;--text-dim:#8b8fa8;--accent:#6c8eff;--accent2:#a78bfa;--success:#34d399;--error:#f87171;--warning:#fbbf24;--radius:8px;--nav-w:280px;--meta-w:300px;--turn-user-bg:#1a2740;--strong-text:#fff;--accent-alpha5:rgba(108,142,255,.05);--accent-alpha8:rgba(108,142,255,.08);--accent-alpha12:rgba(108,142,255,.12);--accent-alpha15:rgba(108,142,255,.15);--accent-alpha20:rgba(108,142,255,.2);--accent2-alpha8:rgba(167,139,250,.08);--accent2-alpha15:rgba(167,139,250,.15);--warning-alpha15:rgba(251,191,36,.15);--error-alpha10:rgba(248,113,113,.1);--error-alpha30:rgba(248,113,113,.3);--border-alpha50:rgba(46,51,69,.5);--shadow-lg:0 8px 40px rgba(0,0,0,.5);--shadow-accent:0 4px 24px rgba(108,142,255,.35);--shadow-accent2:0 6px 32px rgba(108,142,255,.45)}
+[data-theme="light"]{--bg:#f8f9fa;--surface:#fff;--surface2:#f0f2f5;--border:#d1d5db;--text:#1f2937;--text-dim:#6b7280;--accent:#4f46e5;--accent2:#7c3aed;--success:#059669;--error:#dc2626;--warning:#d97706;--turn-user-bg:#eff6ff;--strong-text:#111827;--accent-alpha5:rgba(79,70,229,.05);--accent-alpha8:rgba(79,70,229,.08);--accent-alpha12:rgba(79,70,229,.12);--accent-alpha15:rgba(79,70,229,.15);--accent-alpha20:rgba(79,70,229,.2);--accent2-alpha8:rgba(124,58,237,.08);--accent2-alpha15:rgba(124,58,237,.15);--warning-alpha15:rgba(245,158,11,.15);--error-alpha10:rgba(220,38,38,.1);--error-alpha30:rgba(220,38,38,.3);--border-alpha50:rgba(209,213,219,.5);--shadow-lg:0 8px 40px rgba(0,0,0,.15);--shadow-accent:0 4px 24px rgba(79,70,229,.25);--shadow-accent2:0 6px 32px rgba(79,70,229,.35)}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;overflow:hidden;line-height:1.6}
+body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;overflow:hidden;line-height:1.6;transition:background .3s,color .3s}
+.theme-toggle{background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:1rem;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1;margin-left:.5rem}
+.theme-toggle:hover{background:var(--accent);color:#fff;border-color:var(--accent);transform:rotate(15deg)}
 
 /* ── Top bar ── */
 .topbar{height:48px;min-height:48px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 1rem;gap:1rem;z-index:20}
@@ -24,18 +41,41 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);co
 .filter-chips{display:flex;flex-wrap:wrap;gap:.3rem;padding:.5rem .75rem;border-bottom:1px solid var(--border)}
 .chip{font-size:.7rem;padding:.15rem .5rem;border-radius:12px;cursor:pointer;border:1px solid var(--border);color:var(--text-dim);white-space:nowrap;transition:all .15s;background:var(--bg)}
 .chip:hover,.chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.chat-list{flex:1;overflow-y:auto;padding:.5rem 0}
-.chat-item{padding:.55rem .75rem;cursor:pointer;border-left:3px solid transparent;transition:all .15s;font-size:.8rem;display:flex;justify-content:space-between;align-items:flex-start}
+.chat-list{flex:1;overflow-y:auto;padding:.5rem 0;position:relative;contain:layout style}
+.chat-spacer{width:100%;pointer-events:none}
+.chat-viewport{position:absolute;left:0;width:100%}
+.chat-item{padding:.55rem .75rem;cursor:pointer;border-left:3px solid transparent;transition:all .15s;font-size:.8rem;display:flex;justify-content:space-between;align-items:flex-start;height:54px;overflow:hidden}
 .chat-item:hover{background:var(--surface2)}
 .chat-item.active{background:var(--surface2);border-left-color:var(--accent)}
 .chat-item .ci-title{color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
 .chat-item .ci-meta{color:var(--text-dim);font-size:.7rem;margin-top:2px}
 .chat-item .ci-badges{display:flex;gap:3px;flex-shrink:0;margin-top:1px}
 .ci-badge{font-size:.6rem;padding:1px 5px;border-radius:3px}
-.ci-badge.fav{background:rgba(251,191,36,.15);color:var(--warning)}
-.ci-badge.img{background:rgba(108,142,255,.15);color:var(--accent)}
+.ci-badge.fav{background:var(--warning-alpha15);color:var(--warning)}
+.ci-badge.img{background:var(--accent-alpha15);color:var(--accent)}
 .chat-list::-webkit-scrollbar{width:5px}
 .chat-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+/* ── Batch selection ── */
+.batch-toolbar{display:none;padding:.5rem .75rem;border-bottom:1px solid var(--border);background:var(--surface2);flex-wrap:wrap;gap:.3rem;align-items:center}
+.batch-toolbar.visible{display:flex}
+.batch-toolbar .bt-count{font-size:.75rem;font-weight:700;color:var(--accent);white-space:nowrap;margin-right:.25rem}
+.batch-toolbar .bt-btn{font-size:.65rem;padding:.2rem .5rem;border-radius:4px;cursor:pointer;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);white-space:nowrap;transition:all .15s;font-family:inherit}
+.batch-toolbar .bt-btn:hover{color:var(--text);border-color:var(--accent)}
+.batch-toolbar .bt-btn.danger{color:var(--error);border-color:var(--error-alpha30)}
+.batch-toolbar .bt-btn.danger:hover{background:var(--error-alpha10)}
+.batch-toolbar .bt-input{font-size:.65rem;padding:.2rem .4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:100px;font-family:inherit}
+.chat-checkbox{flex-shrink:0;width:16px;height:16px;margin-right:.4rem;accent-color:var(--accent);cursor:pointer;margin-top:2px}
+/* ── Modal ── */
+.modal-overlay{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center}
+.modal-overlay.visible{display:flex}
+.modal-dialog{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;max-width:400px;width:90%;box-shadow:var(--shadow-lg)}
+.modal-dialog h3{margin-bottom:.75rem;font-size:.95rem}
+.modal-dialog p{font-size:.8rem;color:var(--text-dim);margin-bottom:1rem;line-height:1.5}
+.modal-dialog .modal-actions{display:flex;gap:.5rem;justify-content:flex-end}
+.modal-dialog .modal-actions button{padding:.4rem 1rem;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:600;border:none;font-family:inherit;transition:all .15s}
+.modal-dialog .btn-cancel{background:var(--bg);color:var(--text);border:1px solid var(--border)}
+.modal-dialog .btn-danger{background:var(--error);color:#fff}
+.modal-dialog .btn-danger:hover{opacity:.9}
 
 /* ── Main content ── */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
@@ -43,16 +83,47 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);co
 .reader h1{font-size:1.5rem;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.5rem}
 .reader .meta{color:var(--text-dim);font-size:.8rem;padding-bottom:1rem;border-bottom:1px solid var(--border);margin-bottom:1.5rem}
 .turn{margin-bottom:1.5rem;padding:1rem;border-radius:var(--radius)}
-.turn-user{background:#1a2740;border-left:3px solid var(--accent)}
+.turn-user{background:var(--turn-user-bg);border-left:3px solid var(--accent)}
 .turn-model{background:var(--surface2);border-left:3px solid var(--success)}
 .turn-role{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem}
 .turn-role.user{color:var(--accent)}
 .turn-role.model{color:var(--success)}
 .turn-text{white-space:pre-wrap;word-break:break-word;font-size:.9rem;line-height:1.7}
+.turn-text p{margin-bottom:.5rem}
+.turn-text ul,.turn-text ol{padding-left:1.5rem;margin-bottom:.5rem}
+.turn-text li{margin-bottom:.2rem}
+.turn-text code{font-family:'SF Mono','Fira Code','Cascadia Code',monospace;font-size:.82rem;background:var(--accent-alpha12);padding:.1rem .35rem;border-radius:3px;color:var(--text)}
+.turn-text pre{border-radius:var(--radius);margin:.5rem 0 1rem;overflow-x:auto;position:relative}
+.turn-text pre code{background:transparent;padding:0;font-size:.8rem;line-height:1.5;color:inherit}
+.copy-btn{position:absolute;top:4px;right:4px;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);border-radius:4px;font-size:.65rem;cursor:pointer;opacity:0;transition:opacity .15s,color .15s,border-color .15s;font-family:inherit;z-index:1}
+pre:focus-within .copy-btn,pre:hover .copy-btn{opacity:1}
+.copy-btn:hover{color:var(--text);border-color:var(--accent)}
+.copy-btn.copied{color:var(--success);border-color:var(--success);opacity:1}
+.turn-text blockquote{border-left:3px solid var(--accent);padding:.25rem .75rem;margin:.5rem 0;color:var(--text-dim);background:var(--accent-alpha5);border-radius:0 4px 4px 0}
+.turn-text table{border-collapse:collapse;margin:.5rem 0;font-size:.8rem;width:100%}
+.turn-text th,.turn-text td{border:1px solid var(--border);padding:.35rem .6rem;text-align:left}
+.turn-text th{background:var(--surface2);font-weight:600}
+.turn-text a{color:var(--accent);text-decoration:underline}
+.turn-text a:hover{color:var(--accent2)}
+.turn-text strong{font-weight:700;color:var(--strong-text)}
+.turn-text em{font-style:italic}
 .turn-images{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem}
 .turn-images img{max-width:100%;max-height:300px;border-radius:6px;border:1px solid var(--border)}
 .empty-state{text-align:center;color:var(--text-dim);margin-top:4rem}
 .empty-state .icon{font-size:3rem;margin-bottom:1rem}
+/* ── In-chat search bar ── */
+.reader-search-bar{display:none;position:sticky;top:0;z-index:15;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem;align-items:center;gap:.5rem;box-shadow:0 2px 12px rgba(0,0,0,.2)}
+.reader-search-bar.visible{display:flex}
+.reader-search-bar input{flex:1;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:.8rem;outline:none;font-family:inherit}
+.reader-search-bar input:focus{border-color:var(--accent)}
+.find-nav-btn{background:var(--bg);border:1px solid var(--border);color:var(--text-dim);padding:.25rem .45rem;border-radius:4px;cursor:pointer;font-size:.7rem;font-family:inherit;transition:all .15s;white-space:nowrap}
+.find-nav-btn:hover{color:var(--text);border-color:var(--accent)}
+.find-nav-btn:disabled{opacity:.3;cursor:default}
+.find-count{font-size:.7rem;color:var(--text-dim);white-space:nowrap;min-width:2.5rem;text-align:center}
+.find-close{background:0 0;border:none;color:var(--text-dim);cursor:pointer;font-size:.85rem;padding:.15rem .3rem;border-radius:3px;font-family:inherit}
+.find-close:hover{color:var(--text);background:var(--surface2)}
+mark.find-highlight{background:var(--warning-alpha15);color:var(--warning);border-radius:2px;padding:0 1px}
+mark.find-highlight.active-match{background:var(--warning);color:#000;border-radius:2px;padding:0 1px}
 
 /* ── Right panel ── */
 .rpanel{width:var(--meta-w);min-width:var(--meta-w);background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;padding:1rem}
@@ -68,7 +139,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);co
 .rpanel .btn-outline{background:transparent;border:1px solid var(--border);color:var(--text);margin-right:.3rem}
 .rpanel .btn-outline:hover{border-color:var(--accent)}
 .tag-list{display:flex;flex-wrap:wrap;gap:.3rem;margin:.5rem 0}
-.tag-item{font-size:.7rem;padding:.15rem .5rem;border-radius:12px;background:rgba(108,142,255,.15);color:var(--accent);display:flex;align-items:center;gap:.3rem}
+.tag-item{font-size:.7rem;padding:.15rem .5rem;border-radius:12px;background:var(--accent-alpha15);color:var(--accent);display:flex;align-items:center;gap:.3rem}
 .tag-item .tag-del{cursor:pointer;opacity:.5;font-weight:700}
 .tag-item .tag-del:hover{opacity:1}
 .stat-mini{display:grid;grid-template-columns:1fr 1fr;gap:.4rem}
@@ -76,22 +147,69 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);co
 .stat-mini-val{font-size:1rem;font-weight:700}
 .stat-mini-lbl{font-size:.6rem;color:var(--text-dim);text-transform:uppercase}
 /* ── AI ── */
-.summary-box{background:linear-gradient(135deg,rgba(108,142,255,.08),rgba(167,139,250,.08));border:1px solid rgba(108,142,255,.2);border-radius:var(--radius);padding:.75rem 1rem;margin-bottom:1rem;font-size:.85rem;line-height:1.6;color:var(--text)}
+.summary-box{background:linear-gradient(135deg,var(--accent-alpha8),var(--accent2-alpha8));border:1px solid var(--accent-alpha20);border-radius:var(--radius);padding:.75rem 1rem;margin-bottom:1rem;font-size:.85rem;line-height:1.6;color:var(--text)}
 .summary-box .s-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);margin-bottom:.3rem;font-weight:600}
 .summary-box .s-text{color:var(--text-dim)}
-.todo-item{display:flex;align-items:flex-start;gap:.4rem;padding:.35rem 0;border-bottom:1px solid rgba(46,51,69,.5);font-size:.75rem}
+.todo-item{display:flex;align-items:flex-start;gap:.4rem;padding:.35rem 0;border-bottom:1px solid var(--border-alpha50);font-size:.75rem}
 .todo-item:last-child{border-bottom:none}
 .todo-item input[type=checkbox]{margin-top:3px;accent-color:var(--accent)}
-.todo-item .todo-cat{font-size:.55rem;padding:1px 5px;border-radius:3px;background:rgba(108,142,255,.12);color:var(--text-dim);white-space:nowrap}
+.todo-item .todo-cat{font-size:.55rem;padding:1px 5px;border-radius:3px;background:var(--accent-alpha12);color:var(--text-dim);white-space:nowrap}
 .todo-item.done .todo-text{text-decoration:line-through;opacity:.5}
 .btn-ai{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;padding:.4rem .8rem;border-radius:4px;cursor:pointer;font-size:.75rem;font-weight:600;font-family:inherit;transition:all .15s;width:100%}
 .btn-ai:hover{opacity:.9;transform:translateY(-1px)}
 .btn-ai:disabled{opacity:.5;cursor:wait;transform:none}
 .ai-status{font-size:.7rem;color:var(--text-dim);margin-top:.4rem;text-align:center}
+/* ── Charts ── */
+.chart-wrap{width:100%;margin-bottom:1rem;position:relative}
+.chart-wrap canvas{width:100%!important;max-height:250px}
+
+/* ── RAG Chat ── */
+.rag-toggle{position:fixed;bottom:1.25rem;right:1.25rem;z-index:100;width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;cursor:pointer;font-size:1.4rem;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-accent);transition:all .2s;display:none}
+.rag-toggle:hover{transform:scale(1.08);box-shadow:var(--shadow-accent2)}
+.rag-toggle.active{background:var(--surface2);box-shadow:0 4px 24px rgba(0,0,0,.25)}
+
+/* ── Keyboard shortcuts modal ── */
+.help-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);font-size:.85rem;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;font-family:inherit;font-weight:700;margin-left:.25rem}
+.help-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.shortcuts-grid{display:grid;grid-template-columns:auto 1fr;gap:.35rem .75rem;align-items:baseline;max-height:50vh;overflow-y:auto;padding-right:.5rem}
+.shortcuts-grid .sc-section{grid-column:1/-1;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);margin-top:.75rem;margin-bottom:.15rem;padding-top:.5rem;border-top:1px solid var(--border)}
+.shortcuts-grid .sc-section:first-child{margin-top:0;padding-top:0;border-top:none}
+.kbd{display:inline-block;font-family:'SF Mono','Fira Code','Cascadia Code',monospace;font-size:.72rem;padding:.1rem .4rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);white-space:nowrap;text-align:center;min-width:1.5rem}
+.kbd+.kbd{margin-left:2px}
+.sc-desc{font-size:.78rem;color:var(--text-dim)}
+.rag-panel{position:fixed;bottom:5rem;right:1.25rem;z-index:99;width:420px;max-height:560px;background:var(--surface);border:1px solid var(--border);border-radius:12px;display:none;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-lg);animation:ragUp .3s ease}
+.rag-panel.visible{display:flex}
+@keyframes ragUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.rag-header{padding:.75rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2)}
+.rag-header h4{font-size:.85rem;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0}
+.rag-header .rag-actions{display:flex;gap:.4rem}
+.rag-header button{background:0 0;border:1px solid var(--border);color:var(--text-dim);padding:.25rem .5rem;border-radius:4px;cursor:pointer;font-size:.65rem;transition:all .15s}
+.rag-header button:hover{color:var(--text);border-color:var(--accent)}
+.rag-messages{flex:1;overflow-y:auto;padding:.75rem;min-height:120px;max-height:340px;display:flex;flex-direction:column;gap:.6rem}
+.rag-msg{padding:.6rem .75rem;border-radius:8px;font-size:.8rem;line-height:1.5;max-width:90%}
+.rag-msg.user{align-self:flex-end;background:var(--accent);color:#fff}
+.rag-msg.assistant{align-self:flex-start;background:var(--surface2);border:1px solid var(--border)}
+.rag-msg.error{align-self:flex-start;background:var(--error-alpha10);border:1px solid var(--error-alpha30);color:var(--error)}
+.rag-sources{margin-top:.4rem;padding-top:.4rem;border-top:1px solid var(--border);font-size:.65rem;color:var(--text-dim)}
+.rag-sources span{display:inline-block;margin:1px 3px;padding:1px 6px;border-radius:3px;background:var(--accent-alpha12);cursor:pointer;transition:all .15s}
+.rag-sources span:hover{background:var(--accent-alpha20);color:var(--accent)}
+.rag-input-area{padding:.5rem .75rem;border-top:1px solid var(--border);display:flex;gap:.5rem}
+.rag-input-area input{flex:1;padding:.45rem .6rem;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:.8rem;outline:none}
+.rag-input-area input:focus{border-color:var(--accent)}
+.rag-input-area button{background:var(--accent);color:#fff;border:none;padding:.45rem .75rem;border-radius:6px;cursor:pointer;font-size:.75rem;font-weight:600;transition:all .15s;white-space:nowrap}
+.rag-input-area button:hover{opacity:.9}
+.rag-input-area button:disabled{opacity:.4;cursor:not-allowed}
+.rag-typing{display:flex;gap:4px;padding:.4rem 0}
+.rag-typing span{width:5px;height:5px;border-radius:50%;background:var(--accent);animation:ragBounce 1.4s infinite;opacity:.4}
+.rag-typing span:nth-child(2){animation-delay:.2s}
+.rag-typing span:nth-child(3){animation-delay:.4s}
+@keyframes ragBounce{0%,80%,100%{opacity:.4;transform:scale(1)}40%{opacity:1;transform:scale(1.4)}}
+@keyframes fadeInOut{0%{opacity:0;transform:translateX(-50%) translateY(-10px)}15%{opacity:1;transform:translateX(-50%) translateY(0)}85%{opacity:1}100%{opacity:0}}
 
 @media(max-width:900px){
 .rpanel{display:none}
 .sidebar{width:200px;min-width:200px}
+.rag-panel{width:340px;max-height:460px}
 }
 @media(max-width:600px){
 .sidebar{display:none}
@@ -108,12 +226,25 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);co
 <a href="/">Export</a>
 <a href="/dashboard" class="active">Tudástár</a>
 </div>
+<button id="themeToggle" class="theme-toggle" title="Világos/sötét téma váltás" onclick="toggleTheme()" aria-label="Téma váltás">🌙</button>
+<button class="help-btn" title="Billentyűparancsok (?, Shift+?)" onclick="toggleHelp()" aria-label="Segítség">?</button>
+<button id="installBtn" class="theme-toggle" title="Alkalmazás telepítése" onclick="installPwa()" aria-label="Telepítés" style="display:none">📲</button>
 </div>
 
 <!-- Sidebar -->
 <div class="sidebar" id="sidebar">
 <div class="sidebar-search">
-<input type="text" id="searchInput" placeholder="Keresés (FTS5)..." oninput="handleSearch(this.value)">
+<input type="text" id="searchInput" placeholder="Keresés (FTS5 + AI)..." oninput="handleSearch(this.value)">
+</div>
+<div class="batch-toolbar" id="batchToolbar">
+<span class="bt-count" id="btCount">0 kijelölve</span>
+<button class="bt-btn" onclick="selectAll()">Összes</button>
+<button class="bt-btn" onclick="deselectAll()">Mégsem</button>
+<input class="bt-input" id="btTagInput" placeholder="Címkék..." onkeydown="if(event.key==='Enter')batchTag()">
+<button class="bt-btn" onclick="batchTag()">🏷️ Címkézés</button>
+<button class="bt-btn" onclick="batchAiAnalyze()">🤖 AI</button>
+<button class="bt-btn" onclick="openCompareModal()">🔄 Összehasonlítás</button>
+<button class="bt-btn danger" onclick="showDeleteConfirm()">🗑️ Törlés</button>
 </div>
 <div class="filter-chips" id="filterChips"></div>
 <div class="chat-list" id="chatList"></div>
@@ -121,6 +252,13 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);co
 
 <!-- Main -->
 <div class="main" id="main">
+<div class="reader-search-bar" id="readerSearchBar">
+<input type="text" id="findInput" placeholder="Keresés a chat-ben..." oninput="findInChat()" onkeydown="findInputKey(event)">
+<button class="find-nav-btn" id="findPrevBtn" onclick="navigateFindMatch(-1)" disabled title="Előző (Shift+Enter)">▲</button>
+<button class="find-nav-btn" id="findNextBtn" onclick="navigateFindMatch(1)" disabled title="Következő (Enter)">▼</button>
+<span class="find-count" id="findCount"></span>
+<button class="find-close" onclick="closeFindInChat()" title="Bezárás (Esc)">✕</button>
+</div>
 <div class="reader" id="reader">
 <div class="empty-state">
 <div class="icon">📚</div>
@@ -160,26 +298,400 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);co
 <div class="rpanel-section" id="aiSection" style="display:none">
 <h3>🤖 AI Elemzés</h3>
 <button class="btn-ai" id="analyzeBtn" onclick="analyzeChat()">✨ Elemzés indítása</button>
+<button class="btn btn-outline" id="batchAnalyzeBtn" style="width:100%;margin-top:.4rem" onclick="batchAnalyze()">🧠 Batch elemzés</button>
+<button class="btn btn-outline" style="width:100%;margin-top:.4rem" onclick="openPromptEditor()">📝 Promptok szerkesztése</button>
+<button class="btn btn-outline" style="width:100%;margin-top:.4rem" onclick="openScheduleModal()">🕐 Export ütemezés</button>
 <div class="ai-status" id="aiStatus"></div>
 <div id="todosList" style="margin-top:.75rem"></div>
+<!-- Batch progress -->
+<div id="batchProgress" style="display:none;margin-top:.75rem">
+<div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--text-dim);margin-bottom:.25rem">
+<span id="batchLabel">Elemzés...</span>
+<span id="batchCount">0/0</span>
+</div>
+<div style="background:var(--bg);border-radius:4px;height:6px;overflow:hidden">
+<div id="batchBar" style="height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%;transition:width .3s;border-radius:4px"></div>
+</div>
+<div id="batchLog" style="font-size:.65rem;color:var(--text-dim);margin-top:.4rem;max-height:80px;overflow-y:auto"></div>
+</div>
+</div>
+<div class="rpanel-section" id="relatedSection" style="display:none">
+<h3>🔗 Kapcsolatok</h3>
+<div id="relatedGraph" style="width:100%;height:200px;margin-bottom:.5rem;background:var(--bg);border-radius:6px;overflow:hidden;position:relative"></div>
+<div id="relatedList" style="font-size:.7rem;max-height:180px;overflow-y:auto"></div>
+</div>
+<div class="rpanel-section" id="analyticsSection">
+<h3>📊 Analitika</h3>
+<div class="chart-wrap"><canvas id="chartTimeline"></canvas></div>
+<div class="chart-wrap"><canvas id="chartTags"></canvas></div>
+<div class="chart-wrap"><canvas id="chartHistogram"></canvas></div>
+</div>
+</div> <!-- end rpanel -->
+
+<!-- Keyboard shortcuts modal -->
+<div class="modal-overlay" id="helpModal">
+<div class="modal-dialog" style="max-width:520px">
+<h3>⌨️ Billentyűparancsok</h3>
+<div class="shortcuts-grid" id="shortcutsGrid">
+<div class="sc-section">Navigáció</div>
+<div><span class="kbd">↓</span> <span class="kbd">j</span></div><div class="sc-desc">Következő chat</div>
+<div><span class="kbd">↑</span> <span class="kbd">k</span></div><div class="sc-desc">Előző chat</div>
+<div class="sc-section">Keresés</div>
+<div><span class="kbd">/</span> <span class="kbd">Ctrl</span>+<span class="kbd">K</span></div><div class="sc-desc">Keresőmező fókusz</div>
+<div><span class="kbd">Ctrl</span>+<span class="kbd">F</span></div><div class="sc-desc">Chat-en belüli keresés</div>
+<div><span class="kbd">Enter</span></div><div class="sc-desc">Következő találat</div>
+<div><span class="kbd">Shift</span>+<span class="kbd">Enter</span></div><div class="sc-desc">Előző találat</div>
+<div><span class="kbd">Esc</span></div><div class="sc-desc">Keresés törlése / bezárás</div>
+<div class="sc-section">Chat műveletek</div>
+<div><span class="kbd">f</span></div><div class="sc-desc">Kedvenc toggle</div>
+<div><span class="kbd">t</span></div><div class="sc-desc">Címke input fókusz</div>
+<div><span class="kbd">Space</span></div><div class="sc-desc">Aktív chat kijelölése</div>
+<div><span class="kbd">Ctrl</span>+<span class="kbd">A</span></div><div class="sc-desc">Összes kijelölése</div>
+<div><span class="kbd">Shift</span>+kattintás</div><div class="sc-desc">Tartomány kijelölés</div>
+<div class="sc-section">AI & Panel</div>
+<div><span class="kbd">Ctrl</span>+<span class="kbd">Q</span></div><div class="sc-desc">RAG chat panel toggle</div>
+<div class="sc-section">Egyéb</div>
+<div><span class="kbd">?</span> <span class="kbd">Shift</span>+<span class="kbd">?</span></div><div class="sc-desc">Ez a súgó megnyitása/bezárása</div>
+</div>
+<div class="modal-actions" style="margin-top:1rem">
+<button class="btn-cancel" onclick="toggleHelp()">Bezárás</button>
+</div>
+</div>
+</div>
+
+<!-- Delete confirmation modal -->
+<div class="modal-overlay" id="deleteModal">
+<div class="modal-dialog">
+<h3>🗑️ Chat-ek törlése</h3>
+<p id="deleteModalText">Biztosan törölni szeretnéd a kijelölt chat-eket? Ez a művelet nem vonható vissza!</p>
+<div class="modal-actions">
+<button class="btn-cancel" onclick="hideDeleteConfirm()">Mégsem</button>
+<button class="btn-danger" id="deleteConfirmBtn" onclick="batchDelete()">Törlés</button>
+</div>
+</div>
+</div>
+
+<!-- Chat comparison modal -->
+<div class="modal-overlay" id="compareModal">
+<div class="modal-dialog" style="max-width:700px">
+<h3>🔄 Chat Összehasonlítás AI-val</h3>
+<p style="font-size:.75rem;color:var(--text-dim);margin-bottom:.75rem">Válassz ki két chat-et és egy összehasonlítási nézőpontot, majd az AI elemzi a különbségeket és hasonlóságokat.</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem">
+<div>
+<label style="font-size:.7rem;color:var(--text-dim);display:block;margin-bottom:.2rem">Chat A</label>
+<input type="text" id="compareInputA" placeholder="Név vagy ID keresése..." oninput="filterCompareChats('A')" style="width:100%;padding:.35rem .5rem;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:.75rem;font-family:inherit;outline:none">
+<div id="compareChatListA" class="compare-chat-list" style="max-height:180px;overflow-y:auto;margin-top:4px"></div>
+<div id="compareSelectedA" style="font-size:.7rem;color:var(--accent);margin-top:4px;min-height:1rem"></div>
+</div>
+<div>
+<label style="font-size:.7rem;color:var(--text-dim);display:block;margin-bottom:.2rem">Chat B</label>
+<input type="text" id="compareInputB" placeholder="Név vagy ID keresése..." oninput="filterCompareChats('B')" style="width:100%;padding:.35rem .5rem;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:.75rem;font-family:inherit;outline:none">
+<div id="compareChatListB" class="compare-chat-list" style="max-height:180px;overflow-y:auto;margin-top:4px"></div>
+<div id="compareSelectedB" style="font-size:.7rem;color:var(--accent);margin-top:4px;min-height:1rem"></div>
+</div>
+</div>
+
+<div style="margin-bottom:.75rem">
+<label style="font-size:.7rem;color:var(--text-dim);display:block;margin-bottom:.3rem">Összehasonlítási nézőpont</label>
+<div style="display:flex;flex-wrap:wrap;gap:.3rem">
+<button class="perspective-btn active" data-persp="general" onclick="selectPerspective('general')">📊 Általános</button>
+<button class="perspective-btn" data-persp="differences" onclick="selectPerspective('differences')">🔍 Különbségek</button>
+<button class="perspective-btn" data-persp="similarities" onclick="selectPerspective('similarities')">🔗 Hasonlóságok</button>
+<button class="perspective-btn" data-persp="detail" onclick="selectPerspective('detail')">📏 Részletesség</button>
+</div>
+</div>
+
+<div id="compareResult" style="max-height:300px;overflow-y:auto;padding:.75rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:.8rem;line-height:1.6;display:none;margin-bottom:.75rem"></div>
+<div id="compareStatus" style="font-size:.7rem;color:var(--text-dim);margin-bottom:.5rem;min-height:1rem"></div>
+
+<div class="modal-actions">
+<button class="btn-cancel" onclick="closeCompareModal()">Bezárás</button>
+<button class="btn-danger" style="background:var(--accent);color:#fff" id="compareRunBtn" onclick="runCompare()">🚀 Összehasonlítás</button>
+</div>
+</div>
+</div>
+
+<style>
+.perspective-btn{font-size:.7rem;padding:.25rem .6rem;border-radius:4px;cursor:pointer;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);font-family:inherit;transition:all .15s;white-space:nowrap}
+.perspective-btn:hover{color:var(--text);border-color:var(--accent)}
+.perspective-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+.compare-chat-list .compare-chat-opt{padding:.3rem .5rem;cursor:pointer;border-radius:3px;font-size:.7rem;color:var(--text);transition:background .1s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.compare-chat-list .compare-chat-opt:hover{background:var(--surface2)}
+.compare-chat-list .compare-chat-opt.active{background:var(--accent-alpha15);color:var(--accent);font-weight:600}
+.compare-selected{display:inline-block;padding:.15rem .5rem;background:var(--accent-alpha15);color:var(--accent);border-radius:4px;font-weight:600}
+#compareResult p{margin-bottom:.4rem}
+#compareResult h3,#compareResult strong{color:var(--accent)}
+#compareResult ul{padding-left:1.2rem}
+</style>
+
+<!-- Prompt editor modal -->
+<div class="modal-overlay" id="promptModal">
+<div class="modal-dialog" style="max-width:600px">
+<h3>📝 AI Prompt Template-ek Szerkesztése</h3>
+<p style="font-size:.75rem;color:var(--text-dim);margin-bottom:.75rem">Itt személyre szabhatod az AI elemzéshez használt promptokat. Használd a <code style="background:var(--accent-alpha12);padding:1px 4px;border-radius:2px">{{változó}}</code> szintaxist a dinamikus értékekhez.</p>
+<div style="display:flex;gap:.4rem;margin-bottom:.75rem;flex-wrap:wrap" id="promptTabs">
+<button class="prompt-tab active" data-prompt="summarize" onclick="selectPromptTab('summarize')">📋 Összefoglaló</button>
+<button class="prompt-tab" data-prompt="todos" onclick="selectPromptTab('todos')">✅ Teendők</button>
+<button class="prompt-tab" data-prompt="tags" onclick="selectPromptTab('tags')">🏷️ Címkék</button>
+<button class="prompt-tab" data-prompt="rag_query" onclick="selectPromptTab('rag_query')">🧠 RAG Q&A</button>
+</div>
+<div style="margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem">
+<span id="promptVars" style="font-size:.7rem;color:var(--text-dim)"></span>
+<span id="promptCustomBadge" style="display:none;font-size:.65rem;padding:1px 6px;border-radius:3px;background:var(--accent-alpha15);color:var(--accent);font-weight:600">Egyedi</span>
+</div>
+<textarea id="promptEditor" style="width:100%;min-height:180px;font-family:'SF Mono','Fira Code','Cascadia Code',monospace;font-size:.78rem;padding:.6rem;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;resize:vertical;line-height:1.5;outline:none" spellcheck="false"></textarea>
+<div id="promptStatus" style="font-size:.7rem;color:var(--success);margin-top:.4rem;min-height:1.2rem"></div>
+<div class="modal-actions" style="margin-top:.75rem">
+<button class="btn-cancel" id="promptResetBtn" onclick="resetCurrentPrompt()" style="display:none">🔄 Alapért. visszaállítás</button>
+<button class="btn-cancel" onclick="closePromptEditor()">Bezárás</button>
+<button class="btn-danger" style="background:var(--accent);color:#fff" id="promptSaveBtn" onclick="saveCurrentPrompt()">💾 Mentés</button>
+</div>
+</div>
+</div>
+
+<style>
+.prompt-tab{font-size:.72rem;padding:.3rem .7rem;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);font-family:inherit;transition:all .15s;white-space:nowrap}
+.prompt-tab:hover{color:var(--text);border-color:var(--accent)}
+.prompt-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+#promptEditor:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-alpha20)}
+</style>
+
+<!-- Schedule management modal -->
+<div class="modal-overlay" id="scheduleModal">
+<div class="modal-dialog" style="max-width:650px">
+<h3>🕐 Export Ütemezés</h3>
+<p style="font-size:.75rem;color:var(--text-dim);margin-bottom:.75rem">Automatikus időzített exportálás cron kifejezésekkel. Pl. <code style="background:var(--accent-alpha12);padding:1px 4px;border-radius:2px">0 */6 * * *</code> = 6 óránként, <code style="background:var(--accent-alpha12);padding:1px 4px;border-radius:2px">0 3 * * 0</code> = vasárnap hajnali 3-kor.</p>
+
+<!-- New schedule form -->
+<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.75rem;margin-bottom:.75rem">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
+<div>
+<label style="font-size:.7rem;color:var(--text-dim);display:block;margin-bottom:.2rem">Cron kifejezés</label>
+<input type="text" id="schedCron" placeholder="0 */12 * * *" style="width:100%;padding:.35rem .5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:.75rem;font-family:'SF Mono','Fira Code',monospace;outline:none">
+</div>
+<div>
+<label style="font-size:.7rem;color:var(--text-dim);display:block;margin-bottom:.2rem">Név (opcionális)</label>
+<input type="text" id="schedLabel" placeholder="Napi export" style="width:100%;padding:.35rem .5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:.75rem;font-family:inherit;outline:none">
+</div>
+<div>
+<label style="font-size:.7rem;color:var(--text-dim);display:block;margin-bottom:.2rem">Formátum</label>
+<select id="schedFormat" style="width:100%;padding:.35rem .5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:.75rem;font-family:inherit;outline:none">
+<option value="all">Minden formátum</option>
+<option value="both">JSON + Markdown</option>
+<option value="json">JSON</option>
+<option value="markdown">Markdown</option>
+<option value="html">HTML</option>
+<option value="csv">CSV</option>
+<option value="pdf">PDF</option>
+</select>
+</div>
+<div>
+<label style="font-size:.7rem;color:var(--text-dim);display:block;margin-bottom:.2rem">Késleltetés (mp)</label>
+<input type="number" id="schedDelay" value="0.5" min="0.1" step="0.1" style="width:100%;padding:.35rem .5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:.75rem;font-family:inherit;outline:none">
+</div>
+</div>
+<div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+<label style="font-size:.7rem;color:var(--text-dim);display:flex;align-items:center;gap:.3rem"><input type="checkbox" id="schedAutoCookies" style="accent-color:var(--accent)"> Auto-cookie</label>
+<label style="font-size:.7rem;color:var(--text-dim);display:flex;align-items:center;gap:.3rem"><input type="checkbox" id="schedNoResume"> No resume</label>
+</div>
+<button class="btn-ai" style="margin-top:.5rem" onclick="addSchedule()">➕ Ütemezés hozzáadása</button>
+<div id="schedStatus" style="font-size:.7rem;margin-top:.35rem;min-height:1rem"></div>
+</div>
+
+<!-- Active schedules list -->
+<div id="schedList" style="max-height:250px;overflow-y:auto">
+<div style="font-size:.75rem;color:var(--text-dim);text-align:center;padding:.75rem">⏳ Betöltés...</div>
+</div>
+
+<div class="modal-actions" style="margin-top:.75rem">
+<button class="btn-cancel" onclick="closeScheduleModal()">Bezárás</button>
+<button class="btn btn-outline" onclick="loadScheduleList();document.getElementById('schedStatus').textContent='✅ Lista frissítve.';setTimeout(function(){document.getElementById('schedStatus').textContent='';},2000)">🔄 Frissítés</button>
+</div>
+</div>
+</div>
+
+<style>
+.sched-item{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.6rem .75rem;margin-bottom:.4rem;display:flex;justify-content:space-between;align-items:center;gap:.5rem;font-size:.75rem}
+.sched-item .sched-info{flex:1;min-width:0}
+.sched-item .sched-cron{font-family:'SF Mono','Fira Code',monospace;font-size:.75rem;color:var(--accent);background:var(--accent-alpha12);padding:1px 6px;border-radius:3px}
+.sched-item .sched-label{color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sched-item .sched-meta{color:var(--text-dim);font-size:.65rem;margin-top:2px}
+.sched-item .sched-actions{display:flex;gap:.3rem;flex-shrink:0}
+.sched-actions button{font-size:.65rem;padding:.2rem .4rem;border-radius:3px;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text-dim);font-family:inherit;transition:all .15s;white-space:nowrap}
+.sched-actions button:hover{color:var(--text);border-color:var(--accent)}
+.sched-actions .btn-run{color:var(--success);border-color:var(--success)}
+.sched-actions .btn-pause{color:var(--warning)}
+.sched-actions .btn-del{color:var(--error)}
+.sched-item.paused{opacity:.5}
+.sched-item.paused .sched-cron{color:var(--text-dim)}
+</style>
+
+<!-- RAG Chat Panel -->
+<button class="rag-toggle" id="ragToggle" title="Kérdezz az archívumodból (Ctrl+Q)" onclick="toggleRag()">🧠</button>
+<div class="rag-panel" id="ragPanel">
+<div class="rag-header">
+<h4>🧠 Kérdezz az archívumodból</h4>
+<div class="rag-actions">
+<button onclick="ragIndex()" title="Embedding index készítése">📥 Index</button>
+<button onclick="toggleRag()" title="Bezárás">✕</button>
+</div>
+</div>
+<div class="rag-messages" id="ragMessages">
+<div class="rag-msg assistant">👋 Kérdezz bármit a Gemini beszélgetéseid alapján!<br><small style="color:var(--text-dim)">Először kattints az 📥 Index gombra az embeddingek legenerálásához.</small></div>
+</div>
+<div class="rag-input-area">
+<input type="text" id="ragInput" placeholder="Pl. Milyen projektötleteim voltak?..." onkeydown="if(event.key==='Enter')ragAsk()">
+<button id="ragSendBtn" onclick="ragAsk()">Küld</button>
+</div>
 </div>
 
 <script>
+// ── Theme ──
+(function initTheme() {
+  const stored = localStorage.getItem('gemini-theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = stored || (prefersDark ? 'dark' : 'light');
+  applyTheme(theme);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+    if (!localStorage.getItem('gemini-theme')) applyTheme(e.matches ? 'dark' : 'light');
+  });
+})();
+
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = cur === 'light' ? 'dark' : 'light';
+  localStorage.setItem('gemini-theme', next);
+  applyTheme(next);
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('themeToggle');
+  if (btn) { btn.textContent = theme === 'light' ? '☀️' : '🌙'; btn.title = (theme==='light'?'Sötét':'Világos') + ' téma váltás'; }
+  const hljsLink = document.getElementById('hljsTheme');
+  if (hljsLink) hljsLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-' + (theme==='light'?'light':'dark') + '.min.css';
+  if (typeof Chart !== 'undefined') {
+    Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text-dim').trim();
+    Chart.defaults.borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+    if (analyticsCharts) Object.values(analyticsCharts).filter(Boolean).forEach(function(chart) {
+      chart.options.scales.x.ticks.color = Chart.defaults.color;
+      chart.options.scales.y.ticks.color = Chart.defaults.color;
+      chart.update();
+    });
+  }
+}
+
+// ── PWA ──
+let deferredPrompt = null;
+
+function registerSw() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('/sw.js', {scope: '/'}).then(function(reg) {
+    console.log('SW registered:', reg.scope);
+    reg.addEventListener('updatefound', function() {
+      var newWorker = reg.installing;
+      if (!newWorker) return;
+      newWorker.addEventListener('statechange', function() {
+        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+          showUpdateToast();
+        }
+      });
+    });
+  }).catch(function(err) {
+    console.log('SW registration failed:', err);
+  });
+
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    var btn = document.getElementById('installBtn');
+    if (btn) btn.style.display = 'flex';
+  });
+
+  window.addEventListener('appinstalled', function() {
+    deferredPrompt = null;
+    var btn = document.getElementById('installBtn');
+    if (btn) btn.style.display = 'none';
+  });
+}
+
+function installPwa() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(function(result) {
+    if (result.outcome === 'accepted') {
+      document.getElementById('installBtn').style.display = 'none';
+    }
+    deferredPrompt = null;
+  });
+}
+
+function showUpdateToast() {
+  var existing = document.getElementById('updateToast');
+  if (existing) existing.remove();
+  var toast = document.createElement('div');
+  toast.id = 'updateToast';
+  toast.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:200;background:var(--accent);color:#fff;padding:.6rem 1.2rem;border-radius:8px;font-size:.85rem;font-weight:600;box-shadow:0 4px 24px rgba(0,0,0,.3);animation:fadeInOut 4s forwards;cursor:pointer';
+  toast.textContent = '🔄 Frissítés elérhető! Kattints a frissítéshez.';
+  toast.addEventListener('click', function() {
+    navigator.serviceWorker.getRegistration().then(function(reg) {
+      if (reg && reg.waiting) {
+        reg.waiting.postMessage({action: 'skipWaiting'});
+      }
+      window.location.reload();
+    });
+  });
+  document.body.appendChild(toast);
+  setTimeout(function() { toast.remove(); }, 4000);
+}
+
 // ── State ──
 let chats = [];
 let activeCid = null;
 let activeMetadata = null;
+let chatOffset = 0;
+let chatTotal = 0;
+const CHAT_PAGE_SIZE = 50;
+let loadingMore = false;
+let selectedCids = new Set();
+let lastClickedIndex = -1;
+let displayedChats = [];
+let batchSelectionRunning = false;
+
+// ── Marked.js konfig ──
+marked.use({breaks:true,gfm:true});
 
 // ── Init ──
 loadChats();
 loadStats();
 loadTags();
+loadAnalytics().catch(() => {});
+checkRagStatus();
+registerSw();
 
-async function loadChats() {
-const resp = await fetch('/api/chats');
-chats = await resp.json();
+async function loadChats(reset = true) {
+if (reset) { chatOffset = 0; chats = []; loadingMore = false; }
+if (loadingMore) return;
+loadingMore = true;
+const resp = await fetch(`/api/chats?offset=${chatOffset}&limit=${CHAT_PAGE_SIZE}`);
+if (resp.status === 401) { window.location = '/login'; return; }
+if (resp.status === 429) { showRateLimitWarning(); return; }
+const data = await resp.json();
+if (reset) {
+chats = data.chats || [];
+} else {
+chats = chats.concat(data.chats || []);
+}
+chatTotal = data.total || 0;
+chatOffset = (data.offset || 0) + (data.chats || []).length;
+loadingMore = false;
 renderChatList();
 }
+
+// ── Infinite scroll + virtual render ──
+const list = document.getElementById('chatList');
+if (list) list.addEventListener('scroll', onChatListScroll, {passive: true});
 
 async function loadStats() {
 const resp = await fetch('/api/stats');
@@ -199,18 +711,73 @@ const chips = tags.map(t => `<span class="chip" onclick="filterByTag('${t}')">${
 document.getElementById('filterChips').innerHTML = chips;
 }
 
+const ROW_HEIGHT = 54;
+const OVERSCAN = 8;
+let virtScrollPending = false;
+
 function renderChatList(filtered) {
-const list = filtered || chats;
-const html = list.map(c => {
-const fav = c.is_favorite ? '<span class="ci-badge fav">⭐</span>' : '';
-const img = c.image_count > 0 ? `<span class="ci-badge img">${c.image_count}🖼</span>` : '';
-const ai = c.analyzed_at ? '<span class="ci-badge" style="background:rgba(167,139,250,.15);color:#a78bfa">🤖</span>' : '';
-return `<div class="chat-item${c.cid===activeCid?' active':''}" onclick="selectChat('${c.cid}')">
-<div><div class="ci-title">${esc(c.title)}</div><div class="ci-meta">${c.message_count} üzenet</div></div>
-<div class="ci-badges">${ai}${fav}${img}</div>
+  displayedChats = filtered || chats;
+  renderVirtualSlice();
+  updateBatchToolbar();
+}
+
+function renderVirtualSlice() {
+  const list = displayedChats;
+  const container = document.getElementById('chatList');
+  if (!container || list.length === 0) {
+    if (container) container.innerHTML = '<div style="padding:1rem;color:var(--text-dim)">Nincs találat.</div>';
+    return;
+  }
+  const total = list.length;
+  const totalH = total * ROW_HEIGHT;
+  const scrollTop = container.scrollTop;
+  const viewH = container.clientHeight || 400;
+  const startIdx = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
+  const endIdx = Math.min(total, Math.ceil((scrollTop + viewH) / ROW_HEIGHT) + OVERSCAN);
+  const offsetY = startIdx * ROW_HEIGHT;
+
+  let html = `<div class="chat-spacer" style="height:${totalH}px"></div>`;
+  html += `<div class="chat-viewport" style="top:${offsetY}px">`;
+  for (let i = startIdx; i < endIdx; i++) {
+    const c = list[i];
+    if (!c) continue;
+    html += buildChatItemHTML(c, i);
+  }
+  html += '</div>';
+  container.innerHTML = html;
+  // Restore scroll position (innerHTML assignment resets scrollTop)
+  container.scrollTop = scrollTop;
+}
+
+function onChatListScroll() {
+  if (virtScrollPending) return;
+  virtScrollPending = true;
+  requestAnimationFrame(() => {
+    virtScrollPending = false;
+    // Infinite scroll: load more if near bottom
+    if (!loadingMore && chatOffset < chatTotal) {
+      const c = document.getElementById('chatList');
+      if (c && c.scrollHeight - c.scrollTop - c.clientHeight < 300) {
+        loadChats(false);
+        return;
+      }
+    }
+    renderVirtualSlice();
+  });
+}
+
+function buildChatItemHTML(c, idx) {
+  const fav = c.is_favorite ? '<span class="ci-badge fav">⭐</span>' : '';
+  const img = c.image_count > 0 ? `<span class="ci-badge img">${c.image_count}🖼</span>` : '';
+  const ai = c.analyzed_at ? '<span class="ci-badge" style="background:rgba(167,139,250,.15);color:#a78bfa">🤖</span>' : '';
+  const scoreHtml = c._score ? `<span class="ci-badge" style="background:rgba(108,142,255,.2);color:var(--accent);font-weight:600" title="${c._source||'fts5'}: ${(c._score*100).toFixed(0)}%">${(c._score*100).toFixed(0)}%</span>` : '';
+  const checked = selectedCids.has(c.cid) ? ' checked' : '';
+  return `<div class="chat-item${c.cid===activeCid?' active':''}" data-index="${idx}">
+<input type="checkbox" class="chat-checkbox"${checked} onclick="event.stopPropagation();toggleChat('${c.cid}',${idx},event)">
+<div style="flex:1;min-width:0" onclick="selectChat('${c.cid}')">
+<div class="ci-title">${esc(c.title)}</div><div class="ci-meta">${c.message_count} üzenet</div></div>
+<div class="ci-badges">${scoreHtml}${ai}${fav}${img}</div>
 </div>`;
-}).join('');
-document.getElementById('chatList').innerHTML = html || '<div style="padding:1rem;color:var(--text-dim)">Nincs találat.</div>';
 }
 
 async function handleSearch(q) {
@@ -219,7 +786,8 @@ const resp = await fetch('/api/search?q=' + encodeURIComponent(q));
 const results = await resp.json();
 const filtered = results.map(r => ({
 cid: r.cid, title: r.title, message_count: r.message_count,
-image_count: 0, is_favorite: r.is_favorite, tags: r.tags || [], status: r.status
+image_count: r.image_count || 0, is_favorite: r.is_favorite, tags: r.tags || [],
+status: r.status, _score: r._score, _source: r._source
 }));
 renderChatList(filtered);
 }
@@ -227,6 +795,168 @@ renderChatList(filtered);
 function filterByTag(tag) {
 const filtered = chats.filter(c => (c.tags||[]).includes(tag));
 renderChatList(filtered);
+}
+
+// ── Batch selection ──
+function toggleChat(cid, index, event) {
+if (event.shiftKey && lastClickedIndex >= 0) {
+  const start = Math.min(lastClickedIndex, index);
+  const end = Math.max(lastClickedIndex, index);
+  for (let i = start; i <= end; i++) {
+    if (displayedChats[i]) selectedCids.add(displayedChats[i].cid);
+  }
+} else {
+  if (selectedCids.has(cid)) selectedCids.delete(cid);
+  else selectedCids.add(cid);
+}
+lastClickedIndex = index;
+renderChatList();
+}
+
+function selectAll() {
+  chats.forEach(c => selectedCids.add(c.cid));
+  renderChatList();
+}
+
+function deselectAll() {
+  selectedCids.clear();
+  lastClickedIndex = -1;
+  renderChatList();
+}
+
+function updateBatchToolbar() {
+  const tb = document.getElementById('batchToolbar');
+  const count = selectedCids.size;
+  if (count > 0) {
+    tb.classList.add('visible');
+    document.getElementById('btCount').textContent = count + ' kijelölve';
+  } else {
+    tb.classList.remove('visible');
+  }
+}
+
+async function batchTag() {
+  const input = document.getElementById('btTagInput');
+  const tagStr = input.value.trim();
+  if (!tagStr || selectedCids.size === 0) return;
+  const tags = tagStr.split(',').map(t => t.trim()).filter(t => t);
+  if (tags.length === 0) return;
+  await fetch('/api/chat/batch/tags', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({cids: [...selectedCids], tags})
+  });
+  input.value = '';
+  deselectAll();
+  loadChats();
+  loadTags();
+  if (activeCid) loadMetadata(activeCid);
+}
+
+function showDeleteConfirm() {
+  if (selectedCids.size === 0) return;
+  document.getElementById('deleteModalText').textContent =
+    `Biztosan törölni szeretnéd a kijelölt ${selectedCids.size} chat-et? Ez a művelet nem vonható vissza!`;
+  document.getElementById('deleteModal').classList.add('visible');
+}
+
+function hideDeleteConfirm() {
+  document.getElementById('deleteModal').classList.remove('visible');
+}
+
+async function batchDelete() {
+  hideDeleteConfirm();
+  if (selectedCids.size === 0) return;
+  const wasActive = activeCid && selectedCids.has(activeCid);
+  await fetch('/api/chat/batch/delete', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({cids: [...selectedCids]})
+  });
+  const deleted = [...selectedCids];
+  selectedCids.clear();
+  lastClickedIndex = -1;
+  if (wasActive) {
+    activeCid = null;
+    document.getElementById('reader').innerHTML = '<div class="empty-state"><div class="icon">📚</div><h2>Válassz egy beszélgetést</h2></div>';
+    document.getElementById('metaSection').style.display = 'none';
+    document.getElementById('aiSection').style.display = 'none';
+    document.getElementById('aiSummary').style.display = 'none';
+  }
+  // Remove deleted from local state
+  const deletedSet = new Set(deleted);
+  chats = chats.filter(c => !deletedSet.has(c.cid));
+  chatTotal = Math.max(0, chatTotal - deleted.length);
+  renderChatList();
+  loadStats();
+  loadTags();
+}
+
+async function batchAiAnalyze() {
+  if (selectedCids.size === 0 || batchSelectionRunning) return;
+  batchSelectionRunning = true;
+  const cids = [...selectedCids];
+  const progressDiv = document.getElementById('batchProgress');
+  const bar = document.getElementById('batchBar');
+  const count = document.getElementById('batchCount');
+  const label = document.getElementById('batchLabel');
+  const log = document.getElementById('batchLog');
+
+  progressDiv.style.display = 'block';
+  bar.style.width = '0%';
+  label.textContent = `${cids.length} chat elemzése...`;
+  log.innerHTML = '';
+
+  try {
+    const resp = await fetch('/api/chat/batch/ai-analyze', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({cids})
+    });
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+      for (const eventBlock of events) {
+        if (!eventBlock.trim()) continue;
+        let eventType = '', eventData = '';
+        for (const line of eventBlock.split('\n')) {
+          if (line.startsWith('event: ')) eventType = line.substring(7).trim();
+          else if (line.startsWith('data: ')) eventData += line.substring(6);
+        }
+        if (!eventData) continue;
+        try {
+          const data = JSON.parse(eventData);
+          if (eventType === 'progress') {
+            const pct = Math.round((data.current / data.total) * 100);
+            bar.style.width = pct + '%';
+            count.textContent = `${data.current}/${data.total}`;
+            const icon = {done: '✅', failed: '❌', skipped: '⏭️'}[data.status] || '⏳';
+            label.textContent = `${icon} ${data.analyzed || 0} | ❌ ${data.failed || 0} | ⏭️ ${data.skipped || 0}`;
+            if (data.status === 'done' || data.status === 'failed') {
+              const line = document.createElement('div');
+              line.textContent = `${icon} ${(data.title || '').substring(0, 50)}`;
+              if (data.status === 'failed') line.style.color = 'var(--error)';
+              log.appendChild(line);
+              log.scrollTop = log.scrollHeight;
+            }
+          } else if (eventType === 'done') {
+            label.textContent = `🎉 Kész! ${data.analyzed} elemezve`;
+            bar.style.width = '100%';
+          }
+        } catch (e) {}
+      }
+    }
+  } catch (e) {
+    label.textContent = '❌ ' + e.message;
+  }
+  deselectAll();
+  loadChats();
+  if (activeCid) loadAiResults(activeCid);
+  batchSelectionRunning = false;
+  setTimeout(() => { progressDiv.style.display = 'none'; }, 5000);
 }
 
 async function selectChat(cid) {
@@ -238,11 +968,12 @@ if (!resp.ok) { document.getElementById('reader').innerHTML = '<div class="empty
 const data = await resp.json();
 renderChat(data);
 // Metaadatok és AI eredmények betöltése
-loadMetadata(cid);
-loadAiResults(cid);
+loadMetadata(cid);  loadAiResults(cid);
+  loadRelated(cid);
 }
 
 function renderChat(data) {
+closeFindInChat();
 const turns = data.turns || [];
 const html = turns.slice().reverse().map(t => {
 const role = (t.role||'unknown').toUpperCase();
@@ -255,12 +986,17 @@ imgs = '<div class="turn-images">' + t.images.map(i =>
 `<img src="${esc(i.downloaded_path || i.url)}" alt="${esc(i.alt||'')}" loading="lazy">`
 ).join('') + '</div>';
 }
-return `<div class="turn ${cls}"><div class="turn-role ${rc}">${label}</div><div class="turn-text">${esc(t.text||'')}</div>${imgs}</div>`;
+const rawHtml = marked.parse(t.text||'');
+const mdText = DOMPurify.sanitize(rawHtml);
+return `<div class="turn ${cls}"><div class="turn-role ${rc}">${label}</div><div class="turn-text">${mdText}</div>${imgs}</div>`;
 }).join('');
 document.getElementById('reader').innerHTML = `
 <h1>${esc(data.title||'Untitled')}</h1>
 <div class="meta">Chat ID: <code>${data.cid||''}</code> &middot; ${turns.length} üzenet &middot; Export: ${data.exported_at||''}</div>
 ${html}`;
+const reader = document.getElementById('reader');
+reader.querySelectorAll('pre code').forEach(el => { hljs.highlightElement(el); });
+addCopyButtons();
 }
 
 async function loadMetadata(cid) {
@@ -393,6 +1129,140 @@ btn.textContent = '✨ Elemzés indítása';
 }
 }
 
+// ── Batch elemzés ──
+let batchAbortController = null;
+let batchRunning = false;
+
+async function batchAnalyze() {
+// Ha már fut, akkor leállítjuk
+if (batchRunning) {
+if (batchAbortController) {
+batchAbortController.abort();
+batchAbortController = null;
+}
+return;
+}
+batchRunning = true;
+
+const progressDiv = document.getElementById('batchProgress');
+const bar = document.getElementById('batchBar');
+const count = document.getElementById('batchCount');
+const label = document.getElementById('batchLabel');
+const log = document.getElementById('batchLog');
+const btn = document.getElementById('batchAnalyzeBtn');
+
+progressDiv.style.display = 'block';
+bar.style.width = '0%';
+count.textContent = '0/0';
+label.textContent = 'Elemzés indítása...';
+log.innerHTML = '';
+btn.textContent = '⏹ Leállítás';
+btn.style.color = 'var(--error)';
+btn.style.borderColor = 'var(--error)';
+
+batchAbortController = new AbortController();
+
+let stats = {analyzed:0, failed:0, skipped:0, total:0};
+
+try {
+const resp = await fetch('/api/ai/batch-analyze', {
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({summarize:true, todos:true, tags:true}),
+signal: batchAbortController.signal
+});
+
+const reader = resp.body.getReader();
+const decoder = new TextDecoder();
+let buffer = '';
+
+while (true) {
+const {done, value} = await reader.read();
+if (done) break;
+
+buffer += decoder.decode(value, {stream:true});
+const events = buffer.split('\n\n');
+buffer = events.pop() || '';
+
+for (const eventBlock of events) {
+if (!eventBlock.trim()) continue;
+let eventType = '';
+let eventData = '';
+for (const line of eventBlock.split('\n')) {
+if (line.startsWith('event: ')) eventType = line.substring(7).trim();
+else if (line.startsWith('data: ')) eventData += line.substring(6);
+}
+if (!eventData) continue;
+
+try {
+const data = JSON.parse(eventData);
+
+if (eventType === 'start') {
+label.textContent = `${data.unanalyzed} elemzetlen chat található (${data.total} összesen)`;
+stats.total = data.total;
+}
+
+if (eventType === 'progress') {
+const pct = Math.round((data.current / data.total) * 100);
+bar.style.width = pct + '%';
+count.textContent = `${data.current}/${data.total}`;
+stats = {analyzed:data.analyzed, failed:data.failed, skipped:data.skipped, total:data.total};
+
+const statusIcon = {analyzing:'⏳', done:'✅', skipped:'⏭️', failed:'❌'}[data.status] || '•';
+const title = (data.title||'').substring(0, 50);
+
+if (data.status === 'done' || data.status === 'failed') {
+const line = document.createElement('div');
+line.textContent = `${statusIcon} ${title}`;
+if (data.status === 'failed') line.style.color = 'var(--error)';
+log.appendChild(line);
+log.scrollTop = log.scrollHeight;
+}
+
+label.textContent = `✅ ${data.analyzed} | ❌ ${data.failed} | ⏭️ ${data.skipped}`;
+}
+
+if (eventType === 'result') {
+// Frissítsük a chat listát ha az aktív chat érintett
+if (data.cid === activeCid) loadAiResults(activeCid);
+}
+
+if (eventType === 'done') {
+label.textContent = `🎉 Kész! ${data.analyzed} elemezve, ${data.skipped} kihagyva, ${data.failed} sikertelen`;
+count.textContent = `${data.total}/${data.total}`;
+bar.style.width = '100%';
+loadChats();
+if (activeCid) loadAiResults(activeCid);
+}
+
+if (eventType === 'error') {
+label.textContent = '❌ ' + eventData;
+}
+} catch(e) {}
+}
+}
+} catch(e) {
+if (e.name === 'AbortError') {
+label.textContent = `⏹ Megszakítva (${stats.analyzed} elemezve)`;
+} else {
+label.textContent = '❌ Hálózati hiba: ' + e.message;
+}
+} finally {
+batchRunning = false;
+batchAbortController = null;
+btn.textContent = '🧠 Batch elemzés';
+btn.style.color = '';
+btn.style.borderColor = '';
+// Progress bar megtartása 3 mp-ig, majd eltűnik
+setTimeout(() => {
+if (!batchRunning) {
+progressDiv.style.display = 'none';
+}
+}, 5000);
+loadChats();
+}
+}
+
 async function toggleTodoDone(todoId, done) {
 // A chat_todos tábla frissítése a manifest-en keresztül
 if (!activeCid) return;
@@ -402,9 +1272,1185 @@ body:JSON.stringify({action:'toggle_todo',todo_id:todoId,done:done})
 });
 }
 
+function showRateLimitWarning() {
+  const existing = document.getElementById('rateLimitToast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'rateLimitToast';
+  toast.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:200;background:rgba(248,113,113,.95);color:#fff;padding:.6rem 1.2rem;border-radius:8px;font-size:.85rem;font-weight:600;box-shadow:0 4px 24px rgba(248,113,113,.3);animation:fadeInOut 3s forwards';
+  toast.textContent = '⚠️ Túl sok kérés! Kérlek várj egy kicsit...';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
 function esc(s) {
 if (!s) return '';
 return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── RAG Chat ──
+let ragStreaming = false;
+let ragAbortController = null;
+let ragIndexed = false;
+
+async function checkRagStatus() {
+try {
+const resp = await fetch('/api/rag/status');
+const data = await resp.json();
+ragIndexed = data.ready;
+const btn = document.getElementById('ragToggle');
+btn.style.display = 'flex';
+// AI provider info betöltése
+const provResp = await fetch('/api/ai/provider');
+const prov = await provResp.json();
+if (prov.provider === 'ollama') {
+btn.title = 'Ollama (' + prov.model + ') | Ctrl+Q';
+} else if (prov.provider === 'openai') {
+btn.title = 'OpenAI (' + prov.model + ') | Ctrl+Q';
+}
+} catch(e) {}
+}
+
+function toggleRag() {
+const panel = document.getElementById('ragPanel');
+const btn = document.getElementById('ragToggle');
+const visible = panel.classList.contains('visible');
+if (visible) {
+panel.classList.remove('visible');
+btn.classList.remove('active');
+btn.textContent = '🧠';
+if (ragAbortController) { ragAbortController.abort(); ragAbortController = null; }
+ragStreaming = false;
+} else {
+panel.classList.add('visible');
+btn.classList.add('active');
+btn.textContent = '✕';
+document.getElementById('ragInput').focus();
+}
+}
+
+async function ragIndex() {
+const messages = document.getElementById('ragMessages');
+messages.innerHTML = '<div class="rag-msg assistant">⏳ Embedding index készítése... Ez eltarthat néhány percig.</div>';
+try {
+const resp = await fetch('/api/rag/index', {method:'POST'});
+const data = await resp.json();
+messages.innerHTML = `<div class="rag-msg assistant">✅ Index kész! ${data.indexed} chat indexelve, ${data.skipped} kihagyva, ${data.failed} sikertelen.</div>`;
+ragIndexed = data.indexed > 0;
+} catch(e) {
+messages.innerHTML = '<div class="rag-msg error">❌ Hiba az indexelés során.</div>';
+}
+}
+
+function addRagMessage(role, text, className) {
+const messages = document.getElementById('ragMessages');
+const cls = className || (role === 'user' ? 'user' : 'assistant');
+const div = document.createElement('div');
+div.className = 'rag-msg ' + cls;
+div.textContent = text;
+messages.appendChild(div);
+messages.scrollTop = messages.scrollHeight;
+return div;
+}
+
+function showRagTyping() {
+const messages = document.getElementById('ragMessages');
+const div = document.createElement('div');
+div.className = 'rag-msg assistant';
+div.id = 'ragTyping';
+div.innerHTML = '<div class="rag-typing"><span></span><span></span><span></span></div>';
+messages.appendChild(div);
+messages.scrollTop = messages.scrollHeight;
+}
+
+function hideRagTyping() {
+const el = document.getElementById('ragTyping');
+if (el) el.remove();
+}
+
+async function ragAsk() {
+if (ragStreaming) return;
+const input = document.getElementById('ragInput');
+const question = input.value.trim();
+if (!question) return;
+
+input.value = '';
+input.disabled = true;
+document.getElementById('ragSendBtn').disabled = true;
+ragStreaming = true;
+
+if (ragAbortController) { ragAbortController.abort(); }
+ragAbortController = new AbortController();
+
+addRagMessage('user', question);
+showRagTyping();
+
+const answerDiv = document.createElement('div');
+answerDiv.className = 'rag-msg assistant';
+answerDiv.id = 'ragAnswer';
+document.getElementById('ragMessages').appendChild(answerDiv);
+
+let sourcesData = null;
+let answerText = '';
+let currentEvent = '';
+let currentData = '';
+
+function flushEvent() {
+if (currentEvent === 'sources' && currentData) {
+try { sourcesData = JSON.parse(currentData); } catch(e) {}
+} else if (currentEvent === 'error' && currentData) {
+hideRagTyping();
+answerDiv.className = 'rag-msg error';
+answerDiv.textContent = currentData;
+ragStreaming = false;
+input.disabled = false;
+document.getElementById('ragSendBtn').disabled = false;
+} else if (currentEvent === 'done') {
+hideRagTyping();
+ragStreaming = false;
+input.disabled = false;
+document.getElementById('ragSendBtn').disabled = false;
+if (sourcesData && sourcesData.length) {
+const srcDiv = document.createElement('div');
+srcDiv.className = 'rag-sources';
+srcDiv.innerHTML = '📎 Források: ' + sourcesData.map(s =>
+`<span title="Hasonlóság: ${(s.similarity*100).toFixed(0)}%" onclick="selectChat('${s.cid}')">${esc(s.title.substring(0,40))}</span>`
+).join('');
+answerDiv.appendChild(srcDiv);
+}
+} else if (currentData) {
+answerText += currentData;
+answerDiv.textContent = answerText;
+document.getElementById('ragMessages').scrollTop = document.getElementById('ragMessages').scrollHeight;
+}
+currentEvent = '';
+currentData = '';
+}
+
+try {
+const resp = await fetch('/api/rag/query', {
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({question, top_k:5}),
+signal: ragAbortController.signal
+});
+
+const reader = resp.body.getReader();
+const decoder = new TextDecoder();
+let buffer = '';
+
+while (true) {
+const {done, value} = await reader.read();
+if (done) { flushEvent(); break; }
+
+buffer += decoder.decode(value, {stream:true});
+const events = buffer.split('\n\n');
+buffer = events.pop() || '';
+
+for (const eventBlock of events) {
+if (!eventBlock.trim()) continue;
+for (const line of eventBlock.split('\n')) {
+if (line.startsWith('event: ')) { currentEvent = line.substring(7).trim(); }
+else if (line.startsWith('data: ')) { currentData += line.substring(6); }
+}
+flushEvent();
+}
+}
+
+} catch(e) {
+hideRagTyping();
+answerDiv.className = 'rag-msg error';
+answerDiv.textContent = '❌ Hálózati hiba: ' + e.message;
+ragStreaming = false;
+input.disabled = false;
+document.getElementById('ragSendBtn').disabled = false;
+}
+}
+
+// ── Segítség modal ──
+function toggleHelp() {
+  const modal = document.getElementById('helpModal');
+  const visible = modal.classList.contains('visible');
+  if (visible) {
+    modal.classList.remove('visible');
+  } else {
+    modal.classList.add('visible');
+    // Close on overlay click
+    modal.onclick = function(e) {
+      if (e.target === modal) toggleHelp();
+    };
+  }
+}
+
+// ── Billentyűparancsok ──
+document.addEventListener('keydown', function(e) {
+const key = e.key.toLowerCase();
+if (key === 'escape') {
+  // Compare modal bezárása
+  var cm = document.getElementById('compareModal');
+  if (cm && cm.classList.contains('visible')) {
+    closeCompareModal();
+    return;
+  }
+  // Prompt modal bezárása
+  var pm = document.getElementById('promptModal');
+  if (pm && pm.classList.contains('visible')) {
+    closePromptEditor();
+    return;
+  }
+  // Schedule modal bezárása
+  var sm = document.getElementById('scheduleModal');
+  if (sm && sm.classList.contains('visible')) {
+    closeScheduleModal();
+    return;
+  }
+}
+// ? / Shift+?: help modal toggle (működik input-ban is, de csak ha a modal már nyitva van)
+if (key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+  var hm = document.getElementById('helpModal');
+  if (hm && hm.classList.contains('visible')) {
+    e.preventDefault();
+    toggleHelp();
+    return;
+  }
+  // Csak akkor nyílik meg, ha nem input/textarea-ban vagyunk
+  var tagLower = e.target.tagName;
+  if (tagLower !== 'INPUT' && tagLower !== 'TEXTAREA' && tagLower !== 'SELECT') {
+    e.preventDefault();
+    toggleHelp();
+    return;
+  }
+}
+if (key === 'escape') {
+  // Help modal bezárása
+  var helpModal = document.getElementById('helpModal');
+  if (helpModal && helpModal.classList.contains('visible')) {
+    toggleHelp();
+    return;
+  }
+  var searchBar = document.getElementById('readerSearchBar');
+  if (searchBar && searchBar.classList.contains('visible')) {
+    closeFindInChat();
+    return;
+  }
+e.preventDefault();
+document.getElementById('searchInput').value = '';
+handleSearch('');
+document.getElementById('searchInput').blur();
+return;
+}
+// Ctrl+F / Cmd+F: chat-en belüli keresés
+if ((e.ctrlKey || e.metaKey) && key === 'f') {
+e.preventDefault();
+if (activeCid) openFindInChat();
+return;
+}
+const tag = e.target.tagName;
+if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+if (key === 'j' || key === 'arrowdown') {
+e.preventDefault();
+navigateChat(1);
+} else if (key === 'k' || key === 'arrowup') {
+e.preventDefault();
+navigateChat(-1);
+} else if (key === '/' || (e.ctrlKey && key === 'k')) {
+e.preventDefault();
+document.getElementById('searchInput').focus();
+} else if (key === 'f' && !e.ctrlKey && !e.metaKey) {
+e.preventDefault();
+if (activeCid) toggleFav();
+} else if (key === 't' && !e.ctrlKey && !e.metaKey) {
+e.preventDefault();
+const ti = document.getElementById('tagInput');
+if (ti) ti.focus();
+} else if (key === ' ' && !e.ctrlKey && !e.metaKey) {
+e.preventDefault();
+if (activeCid) {
+  const idx = displayedChats.findIndex(c => c.cid === activeCid);
+  if (idx >= 0) toggleChat(activeCid, idx, {shiftKey: e.shiftKey});
+}
+} else if (e.ctrlKey && key === 'a') {
+e.preventDefault();
+selectAll();
+} else if (e.ctrlKey && key === 'q') {
+e.preventDefault();
+toggleRag();
+}
+});
+
+function navigateChat(dir) {
+const items = displayedChats;
+if (!items.length) return;
+let idx = items.findIndex(c => c.cid === activeCid);
+if (idx === -1) idx = 0;
+else idx = Math.max(0, Math.min(items.length - 1, idx + dir));
+selectChat(items[idx].cid);
+const container = document.getElementById('chatList');
+if (container) container.scrollTop = idx * ROW_HEIGHT - container.clientHeight / 2;
+}
+
+// ── Chat-en belüli keresés (Ctrl+F) ──
+
+let findMatches = [];
+let findMatchIndex = -1;
+let findLastQuery = '';
+
+function openFindInChat() {
+  const bar = document.getElementById('readerSearchBar');
+  const input = document.getElementById('findInput');
+  bar.classList.add('visible');
+  input.value = '';
+  findMatches = [];
+  findMatchIndex = -1;
+  findLastQuery = '';
+  document.getElementById('findCount').textContent = '';
+  document.getElementById('findPrevBtn').disabled = true;
+  document.getElementById('findNextBtn').disabled = true;
+  input.focus();
+}
+
+function closeFindInChat() {
+  clearFindHighlights();
+  document.getElementById('readerSearchBar').classList.remove('visible');
+  findMatches = [];
+  findMatchIndex = -1;
+  findLastQuery = '';
+}
+
+function findInputKey(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    navigateFindMatch(e.shiftKey ? -1 : 1);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeFindInChat();
+  }
+}
+
+function findInChat() {
+  clearFindHighlights();
+  findMatches = [];
+  findMatchIndex = -1;
+
+  const query = document.getElementById('findInput').value;
+  if (!query || query.length < 1) {
+    document.getElementById('findCount').textContent = '';
+    document.getElementById('findPrevBtn').disabled = true;
+    document.getElementById('findNextBtn').disabled = true;
+    findLastQuery = '';
+    return;
+  }
+  findLastQuery = query;
+
+  const reader = document.getElementById('reader');
+  const walker = document.createTreeWalker(reader, NodeFilter.SHOW_TEXT, {
+    acceptNode: function(node) {
+      // Skip elements inside search bar, pre/code blocks, and script/style
+      var parent = node.parentElement;
+      if (!parent) return NodeFilter.FILTER_REJECT;
+      if (parent.closest('#readerSearchBar')) return NodeFilter.FILTER_REJECT;
+      if (parent.closest('pre')) return NodeFilter.FILTER_REJECT;
+      if (parent.closest('script')) return NodeFilter.FILTER_REJECT;
+      if (parent.closest('style')) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+
+  var textNodes = [];
+  var node;
+  while (node = walker.nextNode()) {
+    textNodes.push(node);
+  }
+
+  var lowerQuery = query.toLowerCase();
+  for (var i = 0; i < textNodes.length; i++) {
+    var textNode = textNodes[i];
+    var text = textNode.textContent;
+    var lowerText = text.toLowerCase();
+    var idx = lowerText.indexOf(lowerQuery);
+
+    if (idx === -1) continue;
+
+    var fragment = document.createDocumentFragment();
+    var lastIdx = 0;
+
+    while (idx !== -1) {
+      // Szöveg a találat előtt
+      if (idx > lastIdx) {
+        fragment.appendChild(document.createTextNode(text.substring(lastIdx, idx)));
+      }
+      // Találat: <mark>
+      var mark = document.createElement('mark');
+      mark.className = 'find-highlight';
+      mark.textContent = text.substring(idx, idx + query.length);
+      fragment.appendChild(mark);
+      findMatches.push(mark);
+
+      lastIdx = idx + query.length;
+      idx = lowerText.indexOf(lowerQuery, lastIdx);
+    }
+
+    // Maradék szöveg
+    if (lastIdx < text.length) {
+      fragment.appendChild(document.createTextNode(text.substring(lastIdx)));
+    }
+
+    textNode.parentNode.replaceChild(fragment, textNode);
+  }
+
+  // Frissítsük a counter-t
+  var count = findMatches.length;
+  document.getElementById('findCount').textContent = count > 0 ? '0/' + count : 'nincs';
+  document.getElementById('findPrevBtn').disabled = count === 0;
+  document.getElementById('findNextBtn').disabled = count === 0;
+
+  // Automatikusan az első találatra
+  if (count > 0) {
+    navigateFindMatch(1);
+  }
+}
+
+function navigateFindMatch(dir) {
+  if (findMatches.length === 0) return;
+
+  // Clear previous active match
+  if (findMatchIndex >= 0 && findMatchIndex < findMatches.length) {
+    findMatches[findMatchIndex].classList.remove('active-match');
+  }
+
+  if (dir === 1) {
+    findMatchIndex = (findMatchIndex + 1) % findMatches.length;
+  } else {
+    findMatchIndex = (findMatchIndex - 1 + findMatches.length) % findMatches.length;
+  }
+
+  // Highlight current match
+  var current = findMatches[findMatchIndex];
+  current.classList.add('active-match');
+
+  // Scroll into view smoothly
+  current.scrollIntoView({behavior: 'smooth', block: 'center'});
+
+  // Update counter
+  document.getElementById('findCount').textContent = (findMatchIndex + 1) + '/' + findMatches.length;
+}
+
+function clearFindHighlights() {
+  for (var i = 0; i < findMatches.length; i++) {
+    var mark = findMatches[i];
+    var parent = mark.parentNode;
+    if (!parent) continue;
+    parent.replaceChild(document.createTextNode(mark.textContent), mark);
+    parent.normalize();
+  }
+  findMatches = [];
+  findMatchIndex = -1;
+}
+
+// ── Kód másolás ──
+
+function addCopyButtons() {
+  const reader = document.getElementById('reader');
+  if (!reader) return;
+  reader.querySelectorAll('.copy-btn').forEach(function(b){b.remove();});
+  reader.querySelectorAll('pre').forEach(function(pre){
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.type = 'button';
+    btn.title = 'Kód másolása vágólapra';
+    btn.setAttribute('aria-label', 'Kód másolása vágólapra');
+    btn.textContent = '📋 Másolás';
+    btn.onclick = function(){
+      const code = pre.querySelector('code');
+      const text = code ? code.textContent : pre.textContent;
+      if (text === null || text === undefined) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function(){
+          btn.textContent = '✅ Másolva!';
+          btn.classList.add('copied');
+          setTimeout(function(){btn.textContent='📋 Másolás';btn.classList.remove('copied');},2000);
+        }).catch(function(){fallbackCopy(text,btn);});
+      } else {
+        fallbackCopy(text, btn);
+      }
+    };
+    pre.appendChild(btn);
+  });
+}
+
+function fallbackCopy(text, btn) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); btn.textContent='✅ Másolva!'; btn.classList.add('copied'); }
+  catch(e) { btn.textContent='❌ Hiba'; }
+  finally { document.body.removeChild(ta); setTimeout(function(){btn.textContent='📋 Másolás';btn.classList.remove('copied');},2000); }
+}
+
+// ── Kapcsolódó chat-ek / Tudásgráf ──
+
+async function loadRelated(cid) {
+  const section = document.getElementById('relatedSection');
+  if (!section) return;
+  section.style.display = 'block';
+  const graphDiv = document.getElementById('relatedGraph');
+  const listDiv = document.getElementById('relatedList');
+  graphDiv.innerHTML = '<div style="padding:1.5rem;color:var(--text-dim);text-align:center;font-size:.75rem">⏳ Kapcsolatok keresése...</div>';
+  listDiv.innerHTML = '';
+
+  try {
+    const resp = await fetch('/api/chat/' + cid + '/related/graph');
+    const data = await resp.json();
+    if (data.error || !data.nodes || !data.nodes.length) {
+      graphDiv.innerHTML = '<div style="padding:1.5rem;color:var(--text-dim);text-align:center;font-size:.75rem">📭 ' + (data.error || 'Nincsenek indexelt kapcsolatok.') + '</div>';
+      return;
+    }
+    renderKnowledgeGraph(data);
+    renderRelatedList(data);
+  } catch(e) {
+    graphDiv.innerHTML = '<div style="padding:1.5rem;color:var(--error);text-align:center;font-size:.75rem">❌ Hiba a betöltéskor</div>';
+  }
+}
+
+function renderKnowledgeGraph(data) {
+  if (typeof d3 === 'undefined') {
+    document.getElementById('relatedGraph').innerHTML = '<div style="padding:1.5rem;color:var(--error);text-align:center;font-size:.75rem">❌ D3.js nem töltődött be.</div>';
+    return;
+  }
+  const container = document.getElementById('relatedGraph');
+  container.innerHTML = '';
+  const w = container.clientWidth || 268;
+  const h = 200;
+
+  const style = getComputedStyle(document.documentElement);
+  const accent = style.getPropertyValue('--accent').trim();
+  const accent2 = style.getPropertyValue('--accent2').trim();
+  const borderCol = style.getPropertyValue('--border').trim();
+  const textDim = style.getPropertyValue('--text-dim').trim();
+
+  const svg = d3.select('#relatedGraph')
+    .append('svg')
+    .attr('width', w)
+    .attr('height', h)
+    .attr('viewBox', [0, 0, w, h]);
+
+  // Defs: drop shadow filter
+  const defs = svg.append('defs');
+  defs.append('filter').attr('id','graphGlow')
+    .append('feDropShadow').attr('dx',0).attr('dy',0).attr('stdDeviation',2).attr('flood-color',accent).attr('flood-opacity',0.3);
+
+  const simulation = d3.forceSimulation(data.nodes)
+    .force('link', d3.forceLink(data.links).id(d => d.id).distance(function(d){return d.type==='secondary'?70:45;}))
+    .force('charge', d3.forceManyBody().strength(-70))
+    .force('center', d3.forceCenter(w/2, h/2))
+    .force('collision', d3.forceCollide().radius(function(d){return (d.radius||5)+5;}));
+
+  const link = svg.append('g')
+    .selectAll('line')
+    .data(data.links)
+    .join('line')
+    .attr('stroke', borderCol)
+    .attr('stroke-width', function(d){return Math.max(0.5, d.value*3);})
+    .attr('stroke-opacity', function(d){return d.type==='secondary'?0.2:0.5;});
+
+  const node = svg.append('g')
+    .selectAll('circle')
+    .data(data.nodes)
+    .join('circle')
+    .attr('r', function(d){return d.radius||5;})
+    .attr('fill', function(d){return d.group==='target'?accent:accent2;})
+    .attr('stroke', function(d){return d.group==='target'?accent:accent2;})
+    .attr('stroke-width', function(d){return d.group==='target'?2:1;})
+    .attr('stroke-opacity', function(d){return d.group==='target'?0.4:0.2;})
+    .style('cursor', 'pointer')
+    .style('filter', function(d){return d.group==='target'?'url(#graphGlow)':null;})
+    .on('click', function(event, d){
+      if (d.group==='related') { selectChat(d.id); }
+    })
+    .on('mouseover', function(event, d){
+      d3.select(this).transition().duration(150).attr('r', (d.radius||5)*1.5);
+    })
+    .on('mouseout', function(event, d){
+      d3.select(this).transition().duration(150).attr('r', d.radius||5);
+    })
+    .append('title')
+    .text(function(d){
+      return d.title + (d.similarity ? ' ('+Math.round(d.similarity*100)+'%)' : '');
+    });
+
+  simulation.on('tick', function(){
+    link
+      .attr('x1', function(d){return d.source.x;})
+      .attr('y1', function(d){return d.source.y;})
+      .attr('x2', function(d){return d.target.x;})
+      .attr('y2', function(d){return d.target.y;});
+    node
+      .attr('cx', function(d){return d.x;})
+      .attr('cy', function(d){return d.y;});
+  });
+}
+
+function renderRelatedList(data) {
+  const related = data.nodes.filter(function(n){return n.group==='related';});
+  if (!related.length) { document.getElementById('relatedList').innerHTML = ''; return; }
+  const list = document.getElementById('relatedList');
+  list.innerHTML = related.map(function(r){
+    return '<div style="padding:.35rem .5rem;cursor:pointer;border-radius:4px;display:flex;justify-content:space-between;align-items:center;transition:background .1s"'+
+      ' onclick="selectChat(\''+r.id+'\')"'+
+      ' onmouseover="this.style.background=\'var(--surface2)\'"'+
+      ' onmouseout="this.style.background=\'\'">'+
+      '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px">'+esc(r.title)+'</span>'+
+      '<span style="color:var(--accent);font-weight:600;font-size:.65rem">'+Math.round(r.similarity*100)+'%</span>'+
+      '</div>';
+  }).join('');
+}
+
+// ── Schedule management ──
+async function openScheduleModal() {
+  document.getElementById('scheduleModal').classList.add('visible');
+  document.getElementById('schedStatus').textContent = '';
+  loadScheduleList();
+}
+
+function closeScheduleModal() {
+  document.getElementById('scheduleModal').classList.remove('visible');
+}
+
+// Overlay click-to-close
+var scheduleModalEl = document.getElementById('scheduleModal');
+if (scheduleModalEl) {
+  scheduleModalEl.addEventListener('click', function(e) {
+    if (e.target === scheduleModalEl) closeScheduleModal();
+  });
+}
+
+async function loadScheduleList() {
+  var list = document.getElementById('schedList');
+  try {
+    var resp = await fetch('/api/schedule');
+    var data = await resp.json();
+    if (data.error) {
+      list.innerHTML = '<div style="font-size:.75rem;color:var(--error);text-align:center;padding:.75rem">⚠️ ' + esc(data.error) + '</div>';
+      return;
+    }
+    var jobs = data.jobs || [];
+    if (jobs.length === 0) {
+      list.innerHTML = '<div style="font-size:.75rem;color:var(--text-dim);text-align:center;padding:.75rem">📭 Nincs aktív ütemezés. Adj hozzá egyet fent!</div>';
+      return;
+    }
+    list.innerHTML = jobs.map(function(j) {
+      var pausedClass = j.enabled ? '' : ' paused';
+      var lastRun = j.last_run_at ? 'Utolsó: ' + j.last_run_at.substring(0, 16).replace('T', ' ') : 'Még nem futott';
+      var nextRun = j.next_run_at ? 'Következő: ' + j.next_run_at.substring(0, 16).replace('T', ' ') : '';
+      var result = j.last_result ? ' · Eredmény: ' + esc(j.last_result) : '';
+      var label = j.label || j.cron_expr;
+      var pauseLabel = j.enabled ? '⏸' : '▶';
+      var pauseTitle = j.enabled ? 'Szüneteltetés' : 'Folytatás';
+      var autoBadge = j.auto_added ? ' <span style="font-size:.55rem;padding:1px 4px;background:var(--accent-alpha12);color:var(--accent);border-radius:2px">ENV</span>' : '';
+      return '<div class="sched-item' + pausedClass + '">' +
+        '<div class="sched-info">' +
+        '<div class="sched-label">' + esc(label) + autoBadge + '</div>' +
+        '<div class="sched-meta"><span class="sched-cron">' + esc(j.cron_expr) + '</span> · ' + esc(j.format) + ' · ' + esc(lastRun) + (nextRun ? ' · ' + esc(nextRun) : '') + result + '</div>' +
+        '</div>' +
+        '<div class="sched-actions">' +
+        '<button class="btn-run" onclick="runScheduleNow(\'' + j.id + '\')" title="Futtatás most">▶</button>' +
+        '<button class="btn-pause" onclick="toggleSchedulePause(\'' + j.id + '\', ' + j.enabled + ')" title="' + pauseTitle + '">' + pauseLabel + '</button>' +
+        '<button class="btn-del" onclick="deleteSchedule(\'' + j.id + '\')" title="Törlés">✕</button>' +
+        '</div></div>';
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="font-size:.75rem;color:var(--error);text-align:center;padding:.75rem">❌ Nem sikerült betölteni: ' + esc('' + e) + '</div>';
+  }
+}
+
+async function addSchedule() {
+  var cron = document.getElementById('schedCron').value.trim();
+  if (!cron) {
+    document.getElementById('schedStatus').textContent = '❌ A cron kifejezés kötelező.';
+    document.getElementById('schedStatus').style.color = 'var(--error)';
+    return;
+  }
+  var status = document.getElementById('schedStatus');
+  status.textContent = '⏳ Hozzáadás...';
+  status.style.color = 'var(--text-dim)';
+
+  try {
+    var resp = await fetch('/api/schedule', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        cron_expr: cron,
+        label: document.getElementById('schedLabel').value.trim() || null,
+        format: document.getElementById('schedFormat').value,
+        delay: parseFloat(document.getElementById('schedDelay').value) || 0.5,
+        auto_cookies: document.getElementById('schedAutoCookies').checked,
+        no_resume: document.getElementById('schedNoResume').checked
+      })
+    });
+    var data = await resp.json();
+    if (data.id) {
+      status.textContent = '✅ Ütemezés hozzáadva: ' + cron;
+      status.style.color = 'var(--success)';
+      // Clear form
+      document.getElementById('schedCron').value = '';
+      document.getElementById('schedLabel').value = '';
+      loadScheduleList();
+    } else {
+      status.textContent = '❌ ' + (data.error || 'Ismeretlen hiba');
+      status.style.color = 'var(--error)';
+    }
+  } catch(e) {
+    status.textContent = '❌ Hálózati hiba: ' + esc('' + e);
+    status.style.color = 'var(--error)';
+  }
+}
+
+async function deleteSchedule(jobId) {
+  if (!confirm('Biztosan törlöd ezt az ütemezést?')) return;
+  try {
+    await fetch('/api/schedule/' + jobId, {method: 'DELETE'});
+    loadScheduleList();
+  } catch(e) {}
+}
+
+async function toggleSchedulePause(jobId, currentlyEnabled) {
+  var endpoint = currentlyEnabled ? 'pause' : 'resume';
+  try {
+    await fetch('/api/schedule/' + jobId + '/' + endpoint, {method: 'POST'});
+    loadScheduleList();
+  } catch(e) {}
+}
+
+async function runScheduleNow(jobId) {
+  var status = document.getElementById('schedStatus');
+  status.textContent = '⏳ Export indítása...';
+  status.style.color = 'var(--text-dim)';
+  try {
+    var resp = await fetch('/api/schedule/' + jobId + '/run-now', {method: 'POST'});
+    var data = await resp.json();
+    if (data.triggered) {
+      status.textContent = '✅ Export elindítva! A háttérben fut.';
+      status.style.color = 'var(--success)';
+    } else {
+      status.textContent = '❌ ' + (data.error || 'Nem sikerült.');
+      status.style.color = 'var(--error)';
+    }
+    setTimeout(function() {
+      status.textContent = '';
+      loadScheduleList();
+    }, 3000);
+  } catch(e) {
+    status.textContent = '❌ Hálózati hiba.';
+    status.style.color = 'var(--error)';
+  }
+}
+
+// ── Prompt template editor ──
+let promptEditorData = {};
+let promptEditorCurrent = '';
+
+async function openPromptEditor() {
+  document.getElementById('promptModal').classList.add('visible');
+  document.getElementById('promptStatus').textContent = '';
+  try {
+    const resp = await fetch('/api/prompts');
+    const prompts = await resp.json();
+    promptEditorData = {};
+    for (const p of prompts) { promptEditorData[p.name] = p; }
+  } catch(e) {
+    promptEditorData = {};
+  }
+  selectPromptTab('summarize');
+}
+
+function closePromptEditor() {
+  document.getElementById('promptModal').classList.remove('visible');
+}
+
+// Prompt modal overlay click-to-close
+var promptModalEl = document.getElementById('promptModal');
+if (promptModalEl) {
+  promptModalEl.addEventListener('click', function(e) {
+    if (e.target === promptModalEl) closePromptEditor();
+  });
+}
+
+function selectPromptTab(name) {
+  promptEditorCurrent = name;
+  document.querySelectorAll('.prompt-tab').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.prompt === name);
+  });
+  loadPromptIntoEditor(name);
+}
+
+async function loadPromptIntoEditor(name) {
+  const editor = document.getElementById('promptEditor');
+  const badge = document.getElementById('promptCustomBadge');
+  const resetBtn = document.getElementById('promptResetBtn');
+  const varsSpan = document.getElementById('promptVars');
+  editor.value = '⏳ Betöltés...';
+  editor.disabled = true;
+
+  try {
+    const resp = await fetch('/api/prompts/' + name);
+    const data = await resp.json();
+    editor.value = data.content || '';
+    badge.style.display = data.custom ? 'inline' : 'none';
+    resetBtn.style.display = data.custom ? 'inline-block' : 'none';
+    varsSpan.textContent = data.variables && data.variables.length
+      ? 'Változók: ' + data.variables.map(function(v){return '{{'+v+'}}';}).join(', ')
+      : '';
+  } catch(e) {
+    editor.value = '❌ Hiba a betöltéskor: ' + e.message;
+    badge.style.display = 'none';
+    resetBtn.style.display = 'none';
+    varsSpan.textContent = '';
+  }
+  editor.disabled = false;
+  document.getElementById('promptStatus').textContent = '';
+}
+
+async function saveCurrentPrompt() {
+  const name = promptEditorCurrent;
+  const content = document.getElementById('promptEditor').value.trim();
+  if (!content || !name) return;
+
+  const status = document.getElementById('promptStatus');
+  const saveBtn = document.getElementById('promptSaveBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = '⏳ Mentés...';
+  status.textContent = '';
+
+  try {
+    const resp = await fetch('/api/prompts/' + name, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({content: content})
+    });
+    const data = await resp.json();
+    if (data.saved) {
+      status.textContent = '✅ Prompt elmentve! A változások a következő AI elemzésnél lépnek életbe.';
+      status.style.color = 'var(--success)';
+      document.getElementById('promptCustomBadge').style.display = 'inline';
+      document.getElementById('promptResetBtn').style.display = 'inline-block';
+    } else {
+      status.textContent = '❌ Mentési hiba';
+      status.style.color = 'var(--error)';
+    }
+  } catch(e) {
+    status.textContent = '❌ Hálózati hiba: ' + e.message;
+    status.style.color = 'var(--error)';
+  }
+  saveBtn.disabled = false;
+  saveBtn.textContent = '💾 Mentés';
+}
+
+async function resetCurrentPrompt() {
+  const name = promptEditorCurrent;
+  if (!name) return;
+  if (!confirm('Biztosan visszaállítod a(z) "' + name + '" promptot az alapértelmezettre? Az egyedi változtatások elvesznek.')) return;
+
+  const status = document.getElementById('promptStatus');
+  try {
+    const resp = await fetch('/api/prompts/' + name, {method: 'DELETE'});
+    const data = await resp.json();
+    if (data.reset) {
+      document.getElementById('promptCustomBadge').style.display = 'none';
+      document.getElementById('promptResetBtn').style.display = 'none';
+      status.textContent = '✅ Visszaállítva az alapértelmezettre.';
+      status.style.color = 'var(--success)';
+      loadPromptIntoEditor(name);
+    }
+  } catch(e) {
+    status.textContent = '❌ Hiba: ' + e.message;
+    status.style.color = 'var(--error)';
+  }
+}
+
+// ── Chat Comparison ──
+let compareChatA = null;
+let compareChatB = null;
+let comparePerspective = 'general';
+let compareStreaming = false;
+let compareAbortController = null;
+
+function openCompareModal() {
+  document.getElementById('compareModal').classList.add('visible');
+  document.getElementById('compareResult').style.display = 'none';
+  document.getElementById('compareResult').innerHTML = '';
+  document.getElementById('compareStatus').textContent = '';
+  // Pre-fill from batch selection if exactly 2 selected
+  if (selectedCids.size === 2) {
+    var cids = [...selectedCids];
+    pickCompareChat(cids[0], 'A');
+    pickCompareChat(cids[1], 'B');
+  } else {
+    compareChatA = null;
+    compareChatB = null;
+    document.getElementById('compareSelectedA').textContent = '';
+    document.getElementById('compareSelectedB').textContent = '';
+    document.getElementById('compareInputA').value = '';
+    document.getElementById('compareInputB').value = '';
+  }
+  selectPerspective('general');
+  filterCompareChats('A');
+  filterCompareChats('B');
+}
+
+function closeCompareModal() {
+  if (compareStreaming && compareAbortController) {
+    compareAbortController.abort();
+    compareAbortController = null;
+    compareStreaming = false;
+  }
+  document.getElementById('compareModal').classList.remove('visible');
+}
+
+function filterCompareChats(slot) {
+  var input = document.getElementById('compareInput' + slot);
+  var list = document.getElementById('compareChatList' + slot);
+  var q = input.value.trim().toLowerCase();
+  if (!q) {
+    list.innerHTML = chats.slice(0, 15).map(function(c, i) {
+      return '<div class="compare-chat-opt" onclick="pickCompareChat(\'' + c.cid + '\', \'' + slot + '\')">' +
+        esc(c.title) + ' <span style="color:var(--text-dim);font-size:.65rem">' + c.message_count + ' üzenet</span></div>';
+    }).join('');
+    return;
+  }
+  var filtered = chats.filter(function(c) {
+    return (c.title || '').toLowerCase().indexOf(q) !== -1 || c.cid.toLowerCase().indexOf(q) !== -1;
+  }).slice(0, 20);
+  if (filtered.length === 0) {
+    list.innerHTML = '<div style="padding:.3rem .5rem;font-size:.7rem;color:var(--text-dim)">Nincs találat.</div>';
+  } else {
+    list.innerHTML = filtered.map(function(c) {
+      return '<div class="compare-chat-opt" onclick="pickCompareChat(\'' + c.cid + '\', \'' + slot + '\')">' +
+        esc(c.title) + ' <span style="color:var(--text-dim);font-size:.65rem">' + c.message_count + ' üzenet</span></div>';
+    }).join('');
+  }
+}
+
+function pickCompareChat(cid, slot) {
+  var selected = chats.find(function(c) { return c.cid === cid; });
+  if (!selected) return;
+
+  if (slot === 'A') {
+    compareChatA = selected;
+    document.getElementById('compareSelectedA').innerHTML = '<span class="compare-selected">' + esc(selected.title).substring(0, 50) + '</span>';
+    document.getElementById('compareInputA').value = selected.title || '';
+    document.getElementById('compareChatListA').innerHTML = '';
+  } else {
+    compareChatB = selected;
+    document.getElementById('compareSelectedB').innerHTML = '<span class="compare-selected">' + esc(selected.title).substring(0, 50) + '</span>';
+    document.getElementById('compareInputB').value = selected.title || '';
+    document.getElementById('compareChatListB').innerHTML = '';
+  }
+  document.getElementById('compareResult').style.display = 'none';
+  document.getElementById('compareResult').innerHTML = '';
+}
+
+function selectPerspective(persp) {
+  comparePerspective = persp;
+  document.querySelectorAll('.perspective-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.persp === persp);
+  });
+}
+
+async function runCompare() {
+  if (compareStreaming) return;
+  if (!compareChatA || !compareChatB) {
+    document.getElementById('compareStatus').textContent = '❌ Mindkét chat-et ki kell választani.';
+    document.getElementById('compareStatus').style.color = 'var(--error)';
+    return;
+  }
+  if (compareChatA.cid === compareChatB.cid) {
+    document.getElementById('compareStatus').textContent = '❌ Két különböző chat-et kell megadni.';
+    document.getElementById('compareStatus').style.color = 'var(--error)';
+    return;
+  }
+
+  compareStreaming = true;
+  var resultDiv = document.getElementById('compareResult');
+  var statusDiv = document.getElementById('compareStatus');
+  var runBtn = document.getElementById('compareRunBtn');
+
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = '<div class="rag-typing"><span></span><span></span><span></span></div>';
+  statusDiv.textContent = '⏳ Összehasonlítás folyamatban...';
+  statusDiv.style.color = 'var(--text-dim)';
+  runBtn.disabled = true;
+  runBtn.textContent = '⏳ ...';
+
+  if (compareAbortController) { compareAbortController.abort(); }
+  compareAbortController = new AbortController();
+
+  var resultText = '';
+
+  try {
+    var resp = await fetch('/api/ai/compare', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        cid_a: compareChatA.cid,
+        cid_b: compareChatB.cid,
+        perspective: comparePerspective
+      }),
+      signal: compareAbortController.signal
+    });
+
+    var reader = resp.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+
+    while (true) {
+      var {done, value} = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, {stream: true});
+      var events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+
+      for (var i = 0; i < events.length; i++) {
+        var block = events[i];
+        if (!block.trim()) continue;
+        var eventType = '', eventData = '';
+        var lines = block.split('\n');
+        for (var j = 0; j < lines.length; j++) {
+          var line = lines[j];
+          if (line.startsWith('event: ')) eventType = line.substring(7).trim();
+          else if (line.startsWith('data: ')) eventData += line.substring(6);
+        }
+        if (!eventData) continue;
+
+        if (eventType === 'info') {
+          try {
+            var info = JSON.parse(eventData);
+            statusDiv.textContent = '📊 "' + (info.title_a || '').substring(0, 35) + '" ↔ "' + (info.title_b || '').substring(0, 35) + '"';
+          } catch(e) {}
+        } else if (eventType === 'error') {
+          resultDiv.innerHTML = '<div style="color:var(--error)">❌ ' + esc(eventData) + '</div>';
+          statusDiv.textContent = '❌ Hiba történt.';
+          statusDiv.style.color = 'var(--error)';
+        } else if (eventType === 'done') {
+          statusDiv.textContent = '✅ Összehasonlítás kész!';
+          statusDiv.style.color = 'var(--success)';
+        } else if (eventData) {
+          resultText += eventData;
+          var safeHtml = DOMPurify.sanitize(marked.parse(resultText));
+          resultDiv.innerHTML = safeHtml;
+        }
+      }
+    }
+    // Final render after stream ends
+    if (resultText) {
+      resultDiv.innerHTML = DOMPurify.sanitize(marked.parse(resultText));
+    }
+  } catch(e) {
+    if (e.name === 'AbortError') {
+      statusDiv.textContent = '⏹ Megszakítva.';
+    } else {
+      resultDiv.innerHTML = '<div style="color:var(--error)">❌ Hálózati hiba: ' + esc(e.message) + '</div>';
+      statusDiv.textContent = '❌ Hálózati hiba.';
+      statusDiv.style.color = 'var(--error)';
+    }
+  } finally {
+    compareStreaming = false;
+    compareAbortController = null;
+    runBtn.disabled = false;
+    runBtn.textContent = '🚀 Összehasonlítás';
+  }
+}
+
+// Compare modal: Esc + overlay close
+var compareModalEl = document.getElementById('compareModal');
+if (compareModalEl) {
+  compareModalEl.addEventListener('click', function(e) {
+    if (e.target === compareModalEl) closeCompareModal();
+  });
+}
+
+// ── Analitika ──
+let analyticsCharts = {};
+async function loadAnalytics() {
+const section = document.getElementById('analyticsSection');
+try {
+const resp = await fetch('/api/stats/history');
+if (!resp.ok) { section.style.display = 'none'; return; }
+const data = await resp.json();
+const hasData = (data.export_timeline && data.export_timeline.length > 0) || (data.top_tags && data.top_tags.length > 0);
+if (!hasData) { section.style.display = 'none'; return; }
+
+const chartColors = {blue:'#6c8eff',purple:'#a78bfa',green:'#34d399',orange:'#fbbf24',red:'#f87171',cyan:'#22d3ee'};
+Chart.defaults.color = '#8b8fa8';
+Chart.defaults.borderColor = '#2e3345';
+
+// Timeline chart
+if (data.export_timeline && data.export_timeline.length > 0) {
+const labels = data.export_timeline.map(d => d.date);
+const msgData = data.export_timeline.map(d => d.messages);
+const chatData = data.export_timeline.map(d => d.chats);
+if (analyticsCharts.timeline) analyticsCharts.timeline.destroy();
+analyticsCharts.timeline = new Chart(document.getElementById('chartTimeline'), {
+type:'line',
+data:{
+labels,
+datasets:[
+{label:'Üzenetek',data:msgData,borderColor:chartColors.blue,backgroundColor:'rgba(108,142,255,.1)',fill:true,tension:.3,pointRadius:0},
+{label:'Chat-ek',data:chatData,borderColor:chartColors.green,backgroundColor:'transparent',fill:false,tension:.3,pointRadius:0,yAxisID:'y1'}
+]
+},
+options:{
+responsive:true,maintainAspectRatio:false,
+plugins:{legend:{labels:{boxWidth:8,font:{size:9}}},tooltip:{bodyFont:{size:9}}},
+scales:{
+x:{ticks:{font:{size:8},maxTicksLimit:8}},
+y:{title:{text:'Üzenetek',display:true,font:{size:9}},ticks:{font:{size:8}}},
+y1:{position:'right',title:{text:'Chat-ek',display:true,font:{size:9}},ticks:{font:{size:8}},grid:{display:false}}
+}
+}
+});
+}
+
+// Tag chart
+if (data.top_tags && data.top_tags.length > 0) {
+if (analyticsCharts.tags) analyticsCharts.tags.destroy();
+analyticsCharts.tags = new Chart(document.getElementById('chartTags'), {
+type:'bar',
+data:{
+labels:data.top_tags.map(t => t.tag),
+datasets:[{label:'Címkék',data:data.top_tags.map(t => t.count),backgroundColor:chartColors.blue,borderRadius:3}]
+},
+options:{
+indexAxis:'y',
+responsive:true,maintainAspectRatio:false,
+plugins:{legend:{display:false}},
+scales:{x:{ticks:{font:{size:8}}},y:{ticks:{font:{size:9}}}}
+}
+});
+}
+
+// Histogram chart
+if (data.message_histogram && data.message_histogram.length > 0) {
+if (analyticsCharts.histo) analyticsCharts.histo.destroy();
+analyticsCharts.histo = new Chart(document.getElementById('chartHistogram'), {
+type:'bar',
+data:{
+labels:data.message_histogram.map(h => h.bucket),
+datasets:[{label:'Chat-ek',data:data.message_histogram.map(h => h.count),backgroundColor:[chartColors.green,chartColors.cyan,chartColors.blue,chartColors.purple,chartColors.orange,chartColors.red],borderRadius:4}]
+},
+options:{
+responsive:true,maintainAspectRatio:false,
+plugins:{legend:{display:false}},
+scales:{x:{title:{text:'Üzenet / chat',display:true,font:{size:9}},ticks:{font:{size:8}}},y:{ticks:{font:{size:8}}}}
+}
+});
+}
+} catch(e) { console.error('Analytics load error:', e); }
+}
 }
 </script>
 </body>

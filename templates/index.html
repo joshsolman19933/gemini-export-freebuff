@@ -3,6 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0f1117" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#f8f9fa" media="(prefers-color-scheme: light)">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
     <title>Gemini Chat Exporter</title>
     <style>
         :root {
@@ -388,6 +395,44 @@
             .form-grid { grid-template-columns: 1fr; }
             .stat-grid { grid-template-columns: repeat(2, 1fr); }
         }
+
+        /* Presets */
+        .preset-btn {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: .4rem .55rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: .85rem;
+            transition: all .15s;
+            font-family: inherit;
+        }
+        .preset-btn:hover { color: var(--text); border-color: var(--accent); background: var(--surface); }
+        .preset-btn.danger:hover { color: var(--error); border-color: var(--error); }
+
+        /* History */
+        .history-list { max-height: 300px; overflow-y: auto; }
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: .65rem .75rem;
+            border-bottom: 1px solid var(--border);
+            font-size: .8rem;
+            transition: background .1s;
+        }
+        .history-item:last-child { border-bottom: none; }
+        .history-item:hover { background: var(--surface2); }
+        .history-item .hi-left { flex: 1; min-width: 0; }
+        .history-item .hi-date { color: var(--text-dim); font-size: .7rem; }
+        .history-item .hi-meta { color: var(--text-dim); font-size: .72rem; margin-top: 2px; }
+        .history-item .hi-stats { display: flex; gap: .5rem; font-size: .72rem; font-weight: 600; white-space: nowrap; }
+        .history-item .hi-stats span { padding: 1px 6px; border-radius: 3px; }
+        .hi-ok { color: #34d399; background: rgba(52,211,153,.1); }
+        .hi-fail { color: #f87171; background: rgba(248,113,113,.1); }
+        .hi-skip { color: #fbbf24; background: rgba(251,191,36,.1); }
+        .history-empty { text-align: center; color: var(--text-dim); padding: 1.5rem; font-size: .8rem; }
     </style>
 </head>
 <body>
@@ -486,6 +531,18 @@
                     </div>
                 </div>
 
+                <!-- Presets -->
+                <div class="form-group full" style="margin-top:.5rem">
+                    <label>Preset-ek</label>
+                    <div style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap">
+                        <select id="presetSelect" onchange="loadPreset(this.value)" style="flex:1;min-width:120px;padding:.4rem .6rem;font-size:.8rem">
+                            <option value="">— Válassz preset-et —</option>
+                        </select>
+                        <button type="button" class="preset-btn" onclick="savePreset()" title="Jelenlegi beállítások mentése">💾</button>
+                        <button type="button" class="preset-btn" onclick="deletePreset()" title="Kijelölt preset törlése">🗑️</button>
+                    </div>
+                </div>
+
                 <!-- Submit -->
                 <button type="submit" class="btn btn-primary" id="startBtn" style="margin-top: 1.25rem;">
                     <span class="btn-spinner"></span>
@@ -533,6 +590,12 @@
                     <div class="stat-label">Sikertelen</div>
                 </div>
             </div>
+        </div>
+
+        <!-- Export History -->
+        <div class="card" id="historyCard" style="display:none">
+            <div class="card-title">📋 Korábbi Exportok</div>
+            <div class="history-list" id="historyList"></div>
         </div>
 
         <p class="footer">
@@ -740,6 +803,139 @@
             startBtn.disabled = false;
             statusBadge.style.display = 'none';
             progressBar.style.width = '100%';
+        }
+
+        // ── PWA: Service Worker regisztráció ────────────────────────────
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js', {scope: '/'}).catch(function(err) {
+                console.log('SW registration failed:', err);
+            });
+
+            window.addEventListener('beforeinstallprompt', function(e) {
+                // Hagyjuk a böngésző natív telepítési promptját
+            });
+        }
+
+        // ── Presets + History ──────────────────────────────────────────
+        loadPresets();
+        loadHistory();
+
+        function getCurrentSettings() {
+            return {
+                format: document.getElementById('format').value,
+                delay: parseFloat(document.getElementById('delay').value) || 0.5,
+                max_chats: parseInt(document.getElementById('maxChats').value) || 2000,
+                concurrency: parseInt(document.getElementById('concurrency').value) || 3,
+                output_dir: document.getElementById('outputDir').value.trim(),
+                from_date: document.getElementById('fromDate').value.trim() || null,
+                to_date: document.getElementById('toDate').value.trim() || null,
+                keyword_filter: document.getElementById('keywordFilter').value.trim() || null,
+                auto_cookies: document.getElementById('autoCookies').checked,
+            };
+        }
+
+        function applySettings(settings) {
+            if (!settings) return;
+            if (settings.format) document.getElementById('format').value = settings.format;
+            if (settings.delay != null) document.getElementById('delay').value = settings.delay;
+            if (settings.max_chats != null) document.getElementById('maxChats').value = settings.max_chats;
+            if (settings.concurrency != null) document.getElementById('concurrency').value = settings.concurrency;
+            if (settings.output_dir) document.getElementById('outputDir').value = settings.output_dir;
+            if (settings.from_date) document.getElementById('fromDate').value = settings.from_date;
+            if (settings.to_date) document.getElementById('toDate').value = settings.to_date;
+            if (settings.keyword_filter) document.getElementById('keywordFilter').value = settings.keyword_filter;
+            if (settings.auto_cookies != null) {
+                document.getElementById('autoCookies').checked = settings.auto_cookies;
+                document.getElementById('autoCookies').dispatchEvent(new Event('change'));
+            }
+        }
+
+        async function loadPresets() {
+            try {
+                const resp = await fetch('/api/exports/presets');
+                const presets = await resp.json();
+                var sel = document.getElementById('presetSelect');
+                presets.forEach(function(p) {
+                    var opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.name;
+                    sel.appendChild(opt);
+                });
+            } catch(e) {}
+        }
+
+        async function savePreset() {
+            var name = prompt('Preset neve:');
+            if (!name || !name.trim()) return;
+            var settings = getCurrentSettings();
+            try {
+                var resp = await fetch('/api/exports/presets', {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({name: name.trim(), settings: settings})
+                });
+                if (resp.status === 409) {
+                    alert('Már létezik ilyen nevű preset!');
+                    return;
+                }
+                if (!resp.ok) { alert('Hiba a mentés során.'); return; }
+                var sel = document.getElementById('presetSelect');
+                sel.innerHTML = '<option value="">— Válassz preset-et —</option>';
+                loadPresets();
+            } catch(e) { alert('Hálózati hiba.'); }
+        }
+
+        function loadPreset(id) {
+            if (!id) return;
+            fetch('/api/exports/presets').then(r => r.json()).then(function(presets) {
+                var preset = presets.find(function(p) { return p.id == id; });
+                if (preset) {
+                    applySettings(preset.settings);
+                    // Update last_used_at
+                    fetch('/api/exports/presets/' + id, {method: 'PATCH'}).catch(function(){});
+                }
+            }).catch(function(){});
+        }
+
+        async function deletePreset() {
+            var sel = document.getElementById('presetSelect');
+            var id = sel.value;
+            if (!id) return;
+            if (!confirm('Biztosan törlöd ezt a preset-et?')) return;
+            await fetch('/api/exports/presets/' + id, {method: 'DELETE'});
+            sel.innerHTML = '<option value="">— Válassz preset-et —</option>';
+            loadPresets();
+        }
+
+        async function loadHistory() {
+            try {
+                var resp = await fetch('/api/exports/history');
+                var items = await resp.json();
+                if (!items || !items.length) return;
+                var card = document.getElementById('historyCard');
+                card.style.display = 'block';
+                var list = document.getElementById('historyList');
+                list.innerHTML = items.map(function(h) {
+                    var date = (h.started_at || '').substring(0, 16).replace('T', ' ');
+                    var fmt = h.format || '?';
+                    var meta = [
+                        h.settings.delay ? h.settings.delay + 's' : '',
+                        h.settings.max_chats ? 'max ' + h.settings.max_chats : '',
+                        h.settings.concurrency ? h.settings.concurrency + 'x' : ''
+                    ].filter(Boolean).join(' | ');
+                    var out = (h.output_dir || './exports').replace('./exports', 'exports/');
+                    return '<div class="history-item">'+
+                        '<div class="hi-left">'+
+                            '<div class="hi-date">' + date + (h.finished_at ? '' : ' ⏳') + '</div>'+
+                            '<div class="hi-meta">' + fmt + ' → ' + out + (meta ? ' · ' + meta : '') + '</div>'+
+                        '</div>'+
+                        '<div class="hi-stats">'+
+                            '<span class="hi-ok">' + (h.exported || 0) + ' ✅</span>'+
+                            '<span class="hi-skip">' + (h.skipped || 0) + ' ⏭️</span>'+
+                            '<span class="hi-fail">' + (h.failed || 0) + ' ❌</span>'+
+                        '</div>'+
+                    '</div>';
+                }).join('');
+            } catch(e) {}
         }
     </script>
 </body>

@@ -1,0 +1,48 @@
+{
+  "name": "Gemini Tudástár",
+  "short_name": "Tudástár",
+  "description": "Gemini beszélgetések exportálása, keresése és AI elemzése",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay"],
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117",
+  "orientation": "any",
+  "categories": ["productivity", "utilities"],
+  "lang": "hu",
+  "icons": [
+    {
+      "src": "/static/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Exportálás",
+      "short_name": "Export",
+      "description": "Új export indítása",
+      "url": "/"
+    },
+    {
+      "name": "Tudástár",
+      "short_name": "Tudástár",
+      "description": "Chat archívum böngészése",
+      "url": "/dashboard"
+    }
+  ]
+}

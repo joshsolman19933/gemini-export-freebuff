@@ -1,12 +1,19 @@
-import sys, json, sqlite3, tempfile, os
+import sys
+import tempfile
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from export import (
-    _init_manifest, _index_chat_for_search, _search_chats,
-    _add_tags, _set_project, _toggle_favorite, _list_tags,
-    _reindex_all_chats, _resolve_chat_id, _ensure_metadata_row,
-    format_timestamp,
+from gemini_export.manifest import _init_manifest
+from gemini_export.search import (
+    _add_tags,
+    _ensure_metadata_row,
+    _index_chat_for_search,
+    _list_tags,
+    _resolve_chat_id,
+    _search_chats,
+    _set_project,
+    _toggle_favorite,
 )
 
 

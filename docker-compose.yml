@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+  gemini-export:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gemini-export
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    volumes:
+      # Exportált fájlok + manifest adatbázis perzisztálása
+      - ./exports:/app/exports
+      # Opcionális: egyedi .env fájl konténeren belüli használatra
+      # - ./.env:/app/.env:ro
+    restart: unless-stopped
+    # Egészségellenőrzés
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

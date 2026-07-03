@@ -18,6 +18,13 @@ venv/
 .DS_Store
 Thumbs.db
 
+# Docker
+.docker/
+*.tar
+
+# Setup/installer artifacts
+*.pyw
+
 # IDE
 .idea/
 .vscode/

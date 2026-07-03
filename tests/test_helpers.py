@@ -1,9 +1,11 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from export import sanitize_filename, parse_date, filter_chats, _guess_image_ext, _extract_image_metadata
 from datetime import datetime, timezone
+
+from gemini_export.utils import _extract_image_metadata, _guess_image_ext, filter_chats, parse_date, sanitize_filename
 
 
 class TestSanitizeFilename:

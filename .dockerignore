@@ -1,0 +1,45 @@
+# Python virtuális környezet
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Környezeti változók (érzékeny adatok!)
+.env
+
+# Export kimenet (nagy méretű lehet)
+exports/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Tesztek
+tests/
+.pytest_cache/
+.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dokumentáció
+*.md
+!README.md
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
